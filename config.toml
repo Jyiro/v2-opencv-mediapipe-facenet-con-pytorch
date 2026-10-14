@@ -1,27 +1,35 @@
 # Configuración para el sistema de reconocimiento facial y asistencia LIS
 
 [camara]
-# Índice del dispositivo de cámara (0 suele ser la webcam integrada o primera USB)
+# Puede ser un entero (0, 1) o un string con URL de DroidCam ("http://IP:4747/video") o "simulada"
 indice = 0
-# Backend de OpenCV: "auto", "dshow" (solo Windows), "v4l2" (Linux)
+url_stream = "" # Si no está vacío, tiene prioridad sobre 'indice' (ideal para DroidCam por Wi-Fi)
 backend = "auto"
+espejo = true
+mostrar_ventana_local = true # Permite apagar cv.imshow si solo se quiere ver desde el celular/tablet web
 
 [modelos]
-# Rutas relativas a la carpeta mediapipe/ o rutas absolutas
 detector_caras = "blaze_face_short_range.tflite"
 reconocedor_manos = "manos/gesture_recognizer.task"
 landmarks_caras = "face_landmarker.task"
+# Motor de embeddings: "facenet_rapido" (sin MTCNN redundante), "onnx_arcface" (opcional), "facenet_legacy"
+motor_embeddings = "facenet_rapido"
+ruta_modelo_onnx = "modelos_onnx/w600k_mbf.onnx"
 
 [archivos]
-# Rutas relativas a la carpeta mediapipe/ o rutas absolutas
+base_datos_sqlite = "datos/lis_maestra.db"
 caras_csv = "caras/caras.csv"
 asistencia_csv = "asistencia/asistencia.csv"
 ingresos_csv = "manos/registro_de_ingresos.csv"
 
 [parametros]
-# Distancia euclídea máxima para considerar coincidencia (menor es más estricto)
 umbral_reconocimiento = 0.8
-# Intervalo de frames para registrar asistencia por permanencia
+metodo_comparacion = "minimo" # "minimo" o "promedio"
 intervalo_frames_asistencia = 100
-# Identificador de proyecto por defecto
+registro_permanencia_activo = false # Desactivado por defecto (Sección 13: sin vigilancia pasiva)
+frames_cara_estable = 4
+tolerancia_movimiento_px = 35
+muestras_alta = 5
+cooldown_gesto_segundos = 3.0
+pin_admin = "1234"
 proyecto = "LIS"
