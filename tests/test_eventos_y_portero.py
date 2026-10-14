@@ -140,7 +140,12 @@ def test_sincronizador_pull_servidor(tmp_path: Path):
     cursor_previo = _gestor_portero.cursor_actual()
     (tmp_path / "cursor.txt").write_text(str(cursor_previo), encoding="utf-8")
 
-    repo = RepositorioLIS(ruta_db=tmp_path / "servidor_maestro.db")
+    repo = RepositorioLIS(
+        ruta_db=tmp_path / "servidor_maestro.db",
+        ruta_caras_csv=tmp_path / "caras.csv",
+        ruta_asistencia_csv=tmp_path / "asistencia.csv",
+        ruta_ingresos_csv=tmp_path / "registro_de_ingresos.csv",
+    )
     sincronizador = SincronizadorServidor(
         repositorio=repo,
         url_portero="http://127.0.0.1:8099/events",

@@ -1,546 +1,552 @@
-"""Detector de caras y gestos con reconocimiento facial y control de asistencia LIS.
-
-Versión optimizada y modularizada:
-- Integra FuenteDeVideo universal (Webcam, DroidCam por Wi-Fi/IP, y cámara simulada).
-- Transmisión en tiempo real de cuadros con HUD al tablero web vía streaming MJPEG.
-- Integra SQLite nativo (datos/lis_maestra.db) con modo WAL y retrocompatibilidad CSV.
-- Extractor FaceNet rápido sin doble pasada por MTCNN.
-- Estabilizador de cara para triplicar los FPS del sistema.
-- Event Sourcing para entradas, salidas y reingresos múltiples en el mismo día.
-- Alta segura con PIN de administrador, consentimiento informado y ráfaga de 5 muestras.
-- Comunicación con el Fichador Arduino UNO (hardware/serie.py) y modo simulado interactivo.
-"""
-
 from __future__ import annotations
-
-import argparse
-from datetime import datetime, timezone
 import logging
-from pathlib import Path
 import sys
 import time
-import tkinter as tk
-from tkinter import messagebox, simpledialog
+import tomllib
+from pathlib import Path
 from typing import Any
 
 import cv2 as cv
 import mediapipe as mp
 import numpy as np
+import torch
+from facenet_pytorch import InceptionResnetV1
 
-# Configurar logging en español
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%H:%M:%S",
-)
-logger = logging.getLogger("detector_de_caras")
+PROYECTO_DIR = Path(__file__).resolve().parent.parent
+MEDIAPIPE_DIR = Path(__file__).resolve().parent
+if str(PROYECTO_DIR) not in sys.path:
+    sys.path.insert(0, str(PROYECTO_DIR))
 
-# Soporte para carga de TOML
-try:
-    import tomllib
-except ImportError:
-    import tomli as tomllib  # type: ignore
-
-CARPETA_MEDIAPIPE = Path(__file__).resolve().parent
-CARPETA_RAIZ = CARPETA_MEDIAPIPE.parent
-if str(CARPETA_RAIZ) not in sys.path:
-    sys.path.insert(0, str(CARPETA_RAIZ))
-
-from hardware.camara import FuenteDeVideo, guardar_frame_jpeg
 from hardware.serie import ClienteFichadorSerie
 from nucleo.base_datos import RepositorioLIS
 from nucleo.comparacion import consultar_embeddings
-from nucleo.destinos import DestinoCompuesto, DestinoPorteroHTTP, DestinoSQLite
-from nucleo.estabilizador import EstabilizadorDeCaras
-from nucleo.reconocimiento import obtener_extractor, recortar_con_margen
+from nucleo.eventos import crear_evento
 
-RUTA_CONFIG = CARPETA_RAIZ / "config.toml"
-if not RUTA_CONFIG.exists():
-    RUTA_CONFIG = CARPETA_MEDIAPIPE / "config.toml"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
 
-def cargar_configuracion(ruta: Path) -> dict[str, Any]:
-    if ruta.exists():
-        with open(ruta, "rb") as f:
+def cargar_configuracion() -> dict[str, Any]:
+    ruta_cfg = PROYECTO_DIR / "config.toml"
+    if ruta_cfg.exists():
+        with open(ruta_cfg, "rb") as f:
             return tomllib.load(f)
-    return {
-        "camara": {"indice": 0, "url_stream": "", "backend": "auto", "espejo": True, "mostrar_ventana_local": True},
-        "modelos": {"detector_caras": "blaze_face_short_range.tflite", "reconocedor_manos": "manos/gesture_recognizer.task", "motor_embeddings": "facenet_rapido"},
-        "archivos": {"base_datos_sqlite": "datos/lis_maestra.db", "caras_csv": "caras/caras.csv", "asistencia_csv": "asistencia/asistencia.csv", "ingresos_csv": "manos/registro_de_ingresos.csv"},
-        "parametros": {"umbral_reconocimiento": 0.8, "metodo_comparacion": "minimo", "intervalo_frames_asistencia": 100, "frames_cara_estable": 4, "tolerancia_movimiento_px": 35, "muestras_alta": 5, "cooldown_gesto_segundos": 3.0, "pin_admin": "1234", "proyecto": "LIS"},
-    }
+    return {}
 
 
-config = cargar_configuracion(RUTA_CONFIG)
+class ExtractorFaceNetRapido:
+    """
+    Extrae embeddings de 512 dimensiones con InceptionResnetV1 (vggface2)
+    directamente sobre el recorte de BlazeFace, eliminando la doble detección de MTCNN en vivo.
+    """
 
+    def __init__(self) -> None:
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        self.resnet = InceptionResnetV1(pretrained="vggface2").eval().to(self.device)
+        logging.info("Extractor InceptionResnetV1 (vggface2) inicializado en %s", self.device)
 
-def resolver_ruta(ruta_relativa: str, base: Path = CARPETA_MEDIAPIPE) -> Path:
-    p = Path(ruta_relativa)
-    if p.is_absolute():
-        return p
-    candidato_mediapipe = (base / p).resolve()
-    if candidato_mediapipe.exists():
-        return candidato_mediapipe
-    return (CARPETA_RAIZ / p).resolve()
-
-
-# Rutas de modelos y almacenamiento
-ruta_modelo_caras = resolver_ruta(config["modelos"].get("detector_caras", "blaze_face_short_range.tflite"))
-ruta_modelo_manos = resolver_ruta(config["modelos"].get("reconocedor_manos", "manos/gesture_recognizer.task"))
-ruta_db_sqlite = resolver_ruta(config["archivos"].get("base_datos_sqlite", "datos/lis_maestra.db"), CARPETA_RAIZ)
-ruta_caras_csv = resolver_ruta(config["archivos"].get("caras_csv", "caras/caras.csv"))
-ruta_asistencia_csv = resolver_ruta(config["archivos"].get("asistencia_csv", "asistencia/asistencia.csv"))
-ruta_ingresos_csv = resolver_ruta(config["archivos"].get("ingresos_csv", "manos/registro_de_ingresos.csv"))
-
-# Inicializar motor relacional
-repositorio = RepositorioLIS(
-    ruta_db=ruta_db_sqlite,
-    ruta_caras_csv=ruta_caras_csv,
-    ruta_asistencia_csv=ruta_asistencia_csv,
-    ruta_ingresos_csv=ruta_ingresos_csv,
-)
-
-# Inicializar extractores de visión
-motor_embeddings_cfg = config["modelos"].get("motor_embeddings", "facenet_rapido")
-ruta_onnx_cfg = resolver_ruta(config["modelos"].get("ruta_modelo_onnx", "modelos_onnx/w600k_mbf.onnx"), CARPETA_RAIZ)
-extractor = obtener_extractor(tipo_motor=motor_embeddings_cfg, ruta_modelo_onnx=ruta_onnx_cfg)
-
-estabilizador = EstabilizadorDeCaras(
-    frames_cara_estable=int(config["parametros"].get("frames_cara_estable", 4)),
-    tolerancia_movimiento_px=float(config["parametros"].get("tolerancia_movimiento_px", 35)),
-)
-
-# Destinos combinados (SQLite + Portero HTTP con cola offline)
-destino_portero = DestinoPorteroHTTP()
-destino_sqlite = DestinoSQLite(repositorio)
-destinos = DestinoCompuesto([destino_sqlite, destino_portero])
-
-# Variables compartidas
-resultados_caras = None
-manos_detectadas = None
-ultimo_cuadro_bgr = None
-solicitud_alta_click: dict[str, Any] | None = None
-solicitud_alta_remota: dict[str, Any] | None = None
-fuente_video_global: FuenteDeVideo | None = None
-cliente_fichador_global: ClienteFichadorSerie | None = None
-
-
-def callback_buscar_caras(result: mp.tasks.vision.FaceDetectorResult, output_image: mp.Image, timestamp_ms: int):
-    global resultados_caras
-    resultados_caras = result
-
-
-def callback_registrar_manos(result: mp.tasks.vision.GestureRecognizerResult, output_image: mp.Image, timestamp_ms: int):
-    global manos_detectadas
-    manos_detectadas = result
-
-
-def manejar_clic_raton(event, x, y, flags, param):
-    global solicitud_alta_click
-    if event in (cv.EVENT_LBUTTONDBLCLK, cv.EVENT_RBUTTONDOWN):
-        logger.info("Clic detectado en (%d, %d) para iniciar alta.", x, y)
-        solicitud_alta_click = {"x": x, "y": y}
-
-
-def solicitar_alta_remota(nombre: str) -> bool:
-    global solicitud_alta_remota
-    if not nombre or not nombre.strip():
-        return False
-    solicitud_alta_remota = {"nombre": nombre.strip()}
-    logger.info("Solicitud de alta remota encolada para: %s", nombre.strip())
-    return True
-
-
-def iniciar_alta_segura(punto_clic: dict[str, int], detecciones_recientes: list[Any], pin_admin_esperado: str) -> dict[str, Any] | None:
-    if not detecciones_recientes:
-        logger.warning("No se detectó ningún rostro para iniciar el alta.")
-        return None
-
-    x, y = punto_clic.get("x", -1), punto_clic.get("y", -1)
-    bbox_seleccionada = None
-
-    if x >= 0 and y >= 0:
-        # 1. Comprobar si el clic cayó dentro de algún recuadro
-        for det in detecciones_recientes:
-            bb = det.bounding_box
-            x1, y1 = bb.origin_x, bb.origin_y
-            x2, y2 = x1 + bb.width, y1 + bb.height
-            if x1 <= x <= x2 and y1 <= y <= y2:
-                bbox_seleccionada = (x1, y1, bb.width, bb.height)
-                break
-
-        # 2. Si hay 1 sola cara en pantalla, tomarla directamente (tolerante a clics en bordes)
-        if bbox_seleccionada is None and len(detecciones_recientes) == 1:
-            bb = detecciones_recientes[0].bounding_box
-            bbox_seleccionada = (bb.origin_x, bb.origin_y, bb.width, bb.height)
-
-        # 3. Si hay varias caras y no cayó exacto, tomar la más cercana al punto de clic
-        if bbox_seleccionada is None and len(detecciones_recientes) > 1:
-            mejor_dist_sq = float("inf")
-            for det in detecciones_recientes:
-                bb = det.bounding_box
-                cx = bb.origin_x + bb.width / 2.0
-                cy = bb.origin_y + bb.height / 2.0
-                dist_sq = (x - cx) ** 2 + (y - cy) ** 2
-                if dist_sq < mejor_dist_sq:
-                    mejor_dist_sq = dist_sq
-                    bbox_seleccionada = (bb.origin_x, bb.origin_y, bb.width, bb.height)
-    else:
-        # Activación por teclado: tomar la primera cara detectada
-        bb = detecciones_recientes[0].bounding_box
-        bbox_seleccionada = (bb.origin_x, bb.origin_y, bb.width, bb.height)
-
-    if bbox_seleccionada is None:
-        return None
-
-    logger.info("Abriendo diálogo de alta biométrica (PIN requerido)...")
-    raiz_tk = tk.Tk()
-    raiz_tk.withdraw()
-    raiz_tk.attributes("-topmost", True)
-    raiz_tk.lift()
-    raiz_tk.focus_force()
-    try:
-        pin_ingresado = simpledialog.askstring(
-            "PIN Requerido",
-            "Introduce el PIN de Administrador (por defecto: 1234):",
-            show="*",
-            parent=raiz_tk,
-        )
-        if not pin_ingresado or pin_ingresado.strip() != pin_admin_esperado:
-            if pin_ingresado is not None:
-                messagebox.showerror("Denegado", "PIN de administrador incorrecto.", parent=raiz_tk)
-            return None
-
-        nombre = simpledialog.askstring(
-            "Registro de Perfil",
-            "Introduce tu nombre completo:",
-            parent=raiz_tk,
-        )
-        if not nombre or not nombre.strip():
-            return None
-        nombre = nombre.strip()
-
-        mensaje_consentimiento = (
-            f"CONSENTIMIENTO INFORMADO (LIS - UTN FRC)\n\n"
-            f"Persona: {nombre}\n\n"
-            f"• Se capturarán 5 muestras de vectores biométricos (embeddings FaceNet).\n"
-            f"• Los datos residen exclusivamente en la base de datos local SQLite del laboratorio.\n"
-            f"• Por privacidad y diseño (Sección 13), NUNCA se guardan fotos ni recortes en disco.\n\n"
-            f"¿Aceptas el consentimiento informado para continuar?"
-        )
-        if not messagebox.askyesno("Consentimiento Informado", mensaje_consentimiento, parent=raiz_tk):
-            return None
-
-        logger.info("Alta confirmada para '%s'. Iniciando ráfaga de 5 capturas...", nombre)
-        return {"activo": True, "nombre": nombre, "bbox": bbox_seleccionada, "muestras": [], "contador_frames": 0}
-    finally:
-        raiz_tk.destroy()
-
-
-def ejecutar_pipeline(
-    fuente_camara: int | str | None = None,
-    mostrar_ventana: bool | None = None,
-    puerto_serie: str | None = None,
-) -> None:
-    global resultados_caras, manos_detectadas, ultimo_cuadro_bgr, solicitud_alta_click, solicitud_alta_remota, fuente_video_global, cliente_fichador_global
-
-    # Determinar fuente de cámara
-    if fuente_camara is not None:
-        origen_cam = fuente_camara
-    else:
-        url_cfg = config["camara"].get("url_stream", "").strip()
-        origen_cam = url_cfg if url_cfg else config["camara"].get("indice", 0)
-
-    ventana_activa = mostrar_ventana if mostrar_ventana is not None else bool(config["camara"].get("mostrar_ventana_local", True))
-    espejo_cfg = bool(config["camara"].get("espejo", True))
-    backend_cfg = str(config["camara"].get("backend", "auto"))
-
-    fuente_video_global = FuenteDeVideo(origen=origen_cam, backend=backend_cfg, espejo=espejo_cfg)
-
-    # Inicializar cliente serie del Fichador
-    cliente_fichador_global = ClienteFichadorSerie(puerto=puerto_serie, simulado=(puerto_serie is None))
-    cliente_fichador_global.enviar_mensaje_lcd("LIS Control", "Sistema Listo")
-    cliente_fichador_global.set_color_lcd(0, 100, 255)
-    cliente_fichador_global.set_led("azul", 1)
-
-    umbral = float(config["parametros"].get("umbral_reconocimiento", 0.8))
-    metodo_comp = config["parametros"].get("metodo_comparacion", "minimo")
-    proyecto = config["parametros"].get("proyecto", "LIS")
-    pin_admin = str(config["parametros"].get("pin_admin", "1234"))
-    muestras_alta_objetivo = int(config["parametros"].get("muestras_alta", 5))
-    cooldown_gesto = float(config["parametros"].get("cooldown_gesto_segundos", 3.0))
-
-    caras_conocidas = repositorio.obtener_embeddings_activos(modelo=extractor.nombre_modelo)
-
-    opciones_caras = mp.tasks.vision.FaceDetectorOptions(
-        base_options=mp.tasks.BaseOptions(model_asset_path=str(ruta_modelo_caras)),
-        running_mode=mp.tasks.vision.RunningMode.LIVE_STREAM,
-        result_callback=callback_buscar_caras,
-    )
-
-    opciones_manos = mp.tasks.vision.GestureRecognizerOptions(
-        base_options=mp.tasks.BaseOptions(model_asset_path=str(ruta_modelo_manos)),
-        running_mode=mp.tasks.vision.RunningMode.LIVE_STREAM,
-        result_callback=callback_registrar_manos,
-    )
-
-    if ventana_activa:
-        cv.namedWindow("LIS Control")
-        cv.setMouseCallback("LIS Control", manejar_clic_raton)
-
-    ultimo_gesto_tiempo: dict[str, float] = {}
-    mensaje_notificacion: str | None = None
-    tiempo_fin_notificacion: float = 0.0
-    estado_alta: dict[str, Any] | None = None
-
-    with mp.tasks.vision.FaceDetector.create_from_options(opciones_caras) as detector_caras, \
-         mp.tasks.vision.GestureRecognizer.create_from_options(opciones_manos) as reconocedor_manos:
-
+    def generar_embedding(self, recorte_bgr: np.ndarray) -> np.ndarray | None:
         try:
-            while fuente_video_global.isOpened():
-                ret, cuadro = fuente_video_global.read()
-                if not ret or cuadro is None:
-                    time.sleep(0.01)
+            if recorte_bgr is None or recorte_bgr.size == 0:
+                return None
+            h, w = recorte_bgr.shape[:2]
+            if h < 20 or w < 20:
+                return None
+            img_160 = cv.resize(recorte_bgr, (160, 160), interpolation=cv.INTER_AREA)
+            img_rgb = cv.cvtColor(img_160, cv.COLOR_BGR2RGB).astype(np.float32)
+            tensor = torch.from_numpy((img_rgb - 127.5) / 128.0).permute(2, 0, 1).unsqueeze(0).to(self.device)
+            with torch.inference_mode():
+                emb = self.resnet(tensor).detach().cpu().numpy().flatten()
+            return emb.astype(np.float32)
+        except Exception:
+            logging.exception("Error al generar embedding facial")
+            return None
+
+
+class PistaRostro:
+    def __init__(self, bbox: tuple[int, int, int, int], centro: tuple[int, int]) -> None:
+        self.bbox = bbox
+        self.centro = centro
+        self.frames_estables = 1
+        self.frames_desde_inferencia = 999
+        self.reconocido = False
+        self.nombre = "Estabilizando..."
+        self.distancia = 9.99
+        self.ultimo_embedding: np.ndarray | None = None
+        self.gesto_actual: str | None = None
+        self.frames_gesto = 0
+
+
+class PipelineReconocimientoLIS:
+    def __init__(self, fuente_camara: int | str | None = None, mostrar_ventana: bool = True) -> None:
+        self.config = cargar_configuracion()
+        params = self.config.get("parametros", {})
+        modelos_cfg = self.config.get("modelos", {})
+        cam_cfg = self.config.get("camara", {})
+
+        self.umbral: float = float(params.get("umbral_reconocimiento", 0.80))
+        self.metodo_comp: str = str(params.get("metodo_comparacion", "minimo"))
+        self.frames_estable_req: int = int(params.get("frames_cara_estable", 3))
+        self.tolerancia_px: int = int(params.get("tolerancia_movimiento_px", 45))
+        self.frames_gesto_req: int = int(params.get("frames_confirmacion_gesto", 5))
+        self.cooldown_seg: float = float(params.get("cooldown_gesto_segundos", 4.0))
+        self.proyecto: str = str(params.get("proyecto", "LIS"))
+
+        self.mostrar_ventana = mostrar_ventana and bool(cam_cfg.get("mostrar_ventana_local", True))
+        self.espejo = bool(cam_cfg.get("espejo", True))
+
+        url_stream = str(cam_cfg.get("url_stream", "")).strip()
+        self.fuente_camara = fuente_camara if fuente_camara is not None else (url_stream or int(cam_cfg.get("indice", 0)))
+
+        self.repositorio = RepositorioLIS()
+        self.fichador = ClienteFichadorSerie(repositorio=self.repositorio, simular=True)
+        self.extractor = ExtractorFaceNetRapido()
+
+        self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
+        self.ultimo_disparo_por_persona: dict[str, float] = {}
+        self.banner_feedback: tuple[str, tuple[int, int, int], float] | None = None
+
+        self.ruta_modelo_caras = MEDIAPIPE_DIR / modelos_cfg.get("detector_caras", "blaze_face_short_range.tflite")
+        self.ruta_modelo_manos = MEDIAPIPE_DIR / modelos_cfg.get("reconocedor_manos", "manos/gesture_recognizer.task")
+        self.ruta_frame_compartido = PROYECTO_DIR / "datos" / "ultimo_frame.jpg"
+        self.ruta_frame_compartido.parent.mkdir(parents=True, exist_ok=True)
+
+        self.ultimas_caras_mp: Any = None
+        self.ultimas_manos_mp: Any = None
+        self.pistas: list[PistaRostro] = []
+
+        self.buffer_enrolamiento: list[np.ndarray] = []
+        self.nombre_enrolando: str | None = None
+        self.ultimo_frame_captura_alta: int = 0
+
+    def _cb_caras(self, result: Any, output_image: Any, timestamp_ms: int) -> None:
+        self.ultimas_caras_mp = result
+
+    def _cb_manos(self, result: Any, output_image: Any, timestamp_ms: int) -> None:
+        self.ultimas_manos_mp = result
+
+    def _abrir_camara(self) -> cv.VideoCapture:
+        if isinstance(self.fuente_camara, str) and not self.fuente_camara.isdigit():
+            logging.info("Abriendo stream de cámara en %s", self.fuente_camara)
+            return cv.VideoCapture(self.fuente_camara)
+        idx = int(self.fuente_camara)
+        backend = str(self.config.get("camara", {}).get("backend", "auto")).lower()
+        if backend == "dshow" and sys.platform.startswith("win"):
+            return cv.VideoCapture(idx, cv.CAP_DSHOW)
+        if backend == "v4l2" and sys.platform.startswith("linux"):
+            return cv.VideoCapture(idx, cv.CAP_V4L2)
+        return cv.VideoCapture(idx)
+
+    def _actualizar_pistas(self, frame_bgr: np.ndarray, detecciones: list[tuple[int, int, int, int]]) -> list[PistaRostro]:
+        nuevas_pistas: list[PistaRostro] = []
+        usadas: set[int] = set()
+
+        for (x, y, w, h) in detecciones:
+            cx, cy = x + w // 2, y + h // 2
+            mejor_idx = -1
+            menor_dist = float("inf")
+
+            for idx, pista_ant in enumerate(self.pistas):
+                if idx in usadas:
+                    continue
+                dist_px = float(np.hypot(cx - pista_ant.centro[0], cy - pista_ant.centro[1]))
+                if dist_px < self.tolerancia_px and dist_px < menor_dist:
+                    menor_dist = dist_px
+                    mejor_idx = idx
+
+            if mejor_idx >= 0:
+                pista = self.pistas[mejor_idx]
+                usadas.add(mejor_idx)
+                pista.bbox = (x, y, w, h)
+                pista.centro = (cx, cy)
+                pista.frames_estables += 1
+                pista.frames_desde_inferencia += 1
+            else:
+                pista = PistaRostro((x, y, w, h), (cx, cy))
+
+            debe_inferir = (
+                pista.frames_estables == self.frames_estable_req
+                or (pista.frames_estables > self.frames_estable_req and pista.frames_desde_inferencia >= 45)
+                or (self.nombre_enrolando is not None and pista.frames_estables >= 2)
+            )
+
+            if debe_inferir:
+                fh, fw = frame_bgr.shape[:2]
+                pad_x, pad_y = int(w * 0.08), int(h * 0.08)
+                x1, y1 = max(0, x - pad_x), max(0, y - pad_y)
+                x2, y2 = min(fw, x + w + pad_x), min(fh, y + h + pad_y)
+                recorte = frame_bgr[y1:y2, x1:x2]
+                emb = self.extractor.generar_embedding(recorte)
+                if emb is not None:
+                    pista.ultimo_embedding = emb
+                    pista.frames_desde_inferencia = 0
+                    res = consultar_embeddings(emb, self.base_embeddings, self.umbral, self.metodo_comp)
+                    pista.reconocido = res["reconocido"]
+                    pista.nombre = res["nombre"]
+                    pista.distancia = res["distancia"]
+
+            nuevas_pistas.append(pista)
+
+        self.pistas = nuevas_pistas
+        return self.pistas
+
+    def _procesar_enrolamiento_activo(self, frame_idx: int) -> None:
+        orden = self.repositorio.leer_estado_runtime("orden_enrolamiento", {"activo": False})
+        if not orden.get("activo"):
+            self.nombre_enrolando = None
+            self.buffer_enrolamiento.clear()
+            return
+
+        nombre_objetivo = str(orden.get("nombre", "")).strip()
+        muestras_totales = int(orden.get("muestras_totales", 5))
+
+        if self.nombre_enrolando != nombre_objetivo:
+            self.nombre_enrolando = nombre_objetivo
+            self.buffer_enrolamiento.clear()
+            self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
+
+        if not self.pistas:
+            orden["mensaje"] = f"Buscando rostro de {nombre_objetivo} en cámara..."
+            self.repositorio.guardar_estado_runtime("orden_enrolamiento", orden)
+            return
+
+        pista_principal = max(self.pistas, key=lambda p: p.bbox[2] * p.bbox[3])
+        if pista_principal.ultimo_embedding is None:
+            return
+
+        if frame_idx - self.ultimo_frame_captura_alta < 8:
+            return
+
+        # Verificación anti-duplicado biométrico en la primera muestra
+        if len(self.buffer_enrolamiento) == 0:
+            otras_caras = {k: v for k, v in self.base_embeddings.items() if k.lower() != nombre_objetivo.lower()}
+            chequeo = consultar_embeddings(pista_principal.ultimo_embedding, otras_caras, self.umbral, self.metodo_comp)
+            if chequeo["reconocido"]:
+                duplicado_de = chequeo["nombre"]
+                msg_err = f"Rostro ya registrado bajo el perfil '{duplicado_de}' (d={chequeo['distancia']:.2f})."
+                logging.warning(msg_err)
+                self.repositorio.guardar_estado_runtime(
+                    "orden_enrolamiento",
+                    {
+                        "activo": False,
+                        "nombre": nombre_objetivo,
+                        "muestras_totales": muestras_totales,
+                        "muestras_capturadas": 0,
+                        "estado": "error_duplicado",
+                        "mensaje": msg_err,
+                    },
+                )
+                self.banner_feedback = (msg_err, (0, 0, 230), time.time() + 4.0)
+                self.fichador.notificar_evento_acceso("DUPLICADO", "error")
+                self.nombre_enrolando = None
+                return
+
+        self.buffer_enrolamiento.append(pista_principal.ultimo_embedding.copy())
+        self.ultimo_frame_captura_alta = frame_idx
+        capturadas = len(self.buffer_enrolamiento)
+
+        if capturadas < muestras_totales:
+            orden["muestras_capturadas"] = capturadas
+            orden["estado"] = "capturando"
+            orden["mensaje"] = f"Capturando {nombre_objetivo}: muestra {capturadas}/{muestras_totales} (gire levemente el rostro)"
+            self.repositorio.guardar_estado_runtime("orden_enrolamiento", orden)
+        else:
+            self.repositorio.guardar_embeddings_persona(
+                nombre=nombre_objetivo,
+                embeddings=self.buffer_enrolamiento,
+                reemplazar=True,
+                sincronizar_csv=True,
+            )
+            self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
+            msg_ok = f"Perfil biométrico de {nombre_objetivo} guardado ({muestras_totales} muestras)."
+            self.repositorio.guardar_estado_runtime(
+                "orden_enrolamiento",
+                {
+                    "activo": False,
+                    "nombre": nombre_objetivo,
+                    "muestras_totales": muestras_totales,
+                    "muestras_capturadas": muestras_totales,
+                    "estado": "completado",
+                    "mensaje": msg_ok,
+                },
+            )
+            self.fichador.cambiar_rgb(16, 185, 129)
+            self.fichador.mostrar_mensaje("ALTA COMPLETA", nombre_objetivo[:16])
+            self.fichador.sonar_beep("ok")
+            self.banner_feedback = (msg_ok, (16, 185, 129), time.time() + 4.0)
+            self.nombre_enrolando = None
+            self.buffer_enrolamiento.clear()
+
+    def _evaluar_gestos_y_eventos(self, frame_bgr: np.ndarray, estados_presentes: dict[str, Any]) -> None:
+        if not self.ultimas_manos_mp or not self.ultimas_manos_mp.gestures:
+            for p in self.pistas:
+                p.frames_gesto = max(0, p.frames_gesto - 1)
+            return
+
+        fh, fw = frame_bgr.shape[:2]
+        for idx_mano, lista_gestos in enumerate(self.ultimas_manos_mp.gestures):
+            if not lista_gestos or idx_mano >= len(self.ultimas_manos_mp.hand_landmarks):
+                continue
+            nombre_gesto = lista_gestos[0].category_name
+            landmarks = self.ultimas_manos_mp.hand_landmarks[idx_mano]
+            muneca = landmarks[0]
+            mx, my = int(muneca.x * fw), int(muneca.y * fh)
+
+            cv.circle(frame_bgr, (mx, my), 6, (255, 200, 0), -1)
+
+            if nombre_gesto not in ("Open_Palm", "Thumb_Up"):
+                continue
+
+            # Buscar el rostro reconocido geométricamente vinculado a esta mano
+            for pista in self.pistas:
+                x, y, w, h = pista.bbox
+                cx, cy = pista.centro
+                geometria_ok = (abs(mx - cx) < w * 2.4) and (y - int(h * 0.8) <= my <= y + int(h * 2.5))
+
+                if not geometria_ok:
                     continue
 
-                ultimo_cuadro_bgr = cuadro.copy()
-                alto, ancho, _ = cuadro.shape
+                cv.line(frame_bgr, (mx, my), (cx, cy), (16, 220, 130), 2, cv.LINE_AA)
+                etiqueta_g = "ENTRADA (Palma)" if nombre_gesto == "Open_Palm" else "SALIDA (Pulgar)"
+                cv.putText(
+                    frame_bgr,
+                    etiqueta_g,
+                    (mx - 40, max(25, my - 12)),
+                    cv.FONT_HERSHEY_SIMPLEX,
+                    0.55,
+                    (16, 240, 150),
+                    2,
+                    cv.LINE_AA,
+                )
 
-                cuadro_rgb = cv.cvtColor(cuadro, cv.COLOR_BGR2RGB)
-                mp_imagen = mp.Image(image_format=mp.ImageFormat.SRGB, data=cuadro_rgb)
+                if not pista.reconocido:
+                    continue
 
-                frame_timestamp_ms = int(time.perf_counter() * 1000)
-                detector_caras.detect_async(mp_imagen, frame_timestamp_ms)
-                reconocedor_manos.recognize_async(mp_imagen, frame_timestamp_ms)
-
-                if solicitud_alta_click is not None:
-                    detecciones = resultados_caras.detections if resultados_caras else []
-                    estado_alta = iniciar_alta_segura(solicitud_alta_click, detecciones, pin_admin)
-                    solicitud_alta_click = None
-
-                bboxes_actuales: list[tuple[int, int, int, int]] = []
-                if resultados_caras is not None and resultados_caras.detections:
-                    for det in resultados_caras.detections:
-                        bb = det.bounding_box
-                        bboxes_actuales.append((bb.origin_x, bb.origin_y, bb.width, bb.height))
-
-                if solicitud_alta_remota is not None:
-                    nom_remoto = solicitud_alta_remota["nombre"]
-                    solicitud_alta_remota = None
-                    if bboxes_actuales:
-                        estado_alta = {
-                            "activo": True,
-                            "nombre": nom_remoto,
-                            "bbox": bboxes_actuales[0],
-                            "muestras": [],
-                            "contador_frames": 0,
-                        }
-                        logger.info("Alta remota iniciada para: %s. Mirá a la cámara...", nom_remoto)
-                        mensaje_notificacion = f"ALTA EN PROCESO: Mirá a la cámara, {nom_remoto}..."
-                        tiempo_fin_notificacion = time.time() + 4.0
-                        if cliente_fichador_global:
-                            cliente_fichador_global.enviar_mensaje_lcd("Alta Iniciada", nom_remoto[:16])
-                            cliente_fichador_global.set_color_lcd(255, 165, 0)
-                    else:
-                        logger.warning("No hay rostros frente a la cámara para el alta de %s", nom_remoto)
-                        mensaje_notificacion = "ALTA RECHAZADA: No se detecta rostro en cámara"
-                        tiempo_fin_notificacion = time.time() + 3.0
-
-                pistas_visibles = estabilizador.actualizar_pistas(bboxes_actuales)
-
-                for p_info in pistas_visibles:
-                    if p_info["requiere_extraccion"]:
-                        x_o, y_o, w_c, h_c = p_info["bbox"]
-                        recorte = recortar_con_margen(cuadro, x_o, y_o, w_c, h_c, margen_pct=0.10)
-                        if recorte is not None:
-                            emb = extractor.generar_embedding(recorte)
-                            if emb is not None:
-                                res_comp = consultar_embeddings(emb, caras_conocidas, umbral, metodo_comp)
-                                estabilizador.registrar_evaluacion(
-                                    id_pista=p_info["id_pista"],
-                                    nombre=res_comp["nombre"],
-                                    distancia=res_comp["distancia"],
-                                    umbral=umbral,
-                                    reconocido=res_comp["reconocido"],
-                                )
-                                p_info["evaluado"] = True
-                                p_info["reconocido"] = res_comp["reconocido"]
-                                p_info["nombre"] = res_comp["nombre"]
-                                p_info["distancia"] = res_comp["distancia"]
-
-                # Ráfaga de alta
-                if estado_alta is not None and estado_alta.get("activo"):
-                    nombre_alta = estado_alta["nombre"]
-                    muestras_reunidas = estado_alta["muestras"]
-                    estado_alta["contador_frames"] += 1
-
-                    if estado_alta["contador_frames"] % 5 == 0 and bboxes_actuales:
-                        x_o, y_o, w_c, h_c = bboxes_actuales[0]
-                        recorte_alta = recortar_con_margen(cuadro, x_o, y_o, w_c, h_c, margen_pct=0.10)
-                        if recorte_alta is not None:
-                            emb_a = extractor.generar_embedding(recorte_alta)
-                            if emb_a is not None:
-                                muestras_reunidas.append(emb_a)
-                                logger.info("Muestra biométrica %d/%d capturada para %s", len(muestras_reunidas), muestras_alta_objetivo, nombre_alta)
-
-                    if len(muestras_reunidas) >= muestras_alta_objetivo:
-                        repositorio.registrar_persona_con_embeddings(
-                            nombre=nombre_alta,
-                            embeddings=muestras_reunidas,
-                            rol="integrante",
-                            consentimiento=True,
-                            modelo=extractor.nombre_modelo,
-                        )
-                        caras_conocidas = repositorio.obtener_embeddings_activos(modelo=extractor.nombre_modelo)
-                        estabilizador.reiniciar()
-                        mensaje_notificacion = f"ALTA EXITOSA: {nombre_alta} ({muestras_alta_objetivo} muestras)"
-                        tiempo_fin_notificacion = time.time() + 4.0
-                        if cliente_fichador_global:
-                            cliente_fichador_global.enviar_mensaje_lcd("Alta Exitosa", nombre_alta[:16])
-                            cliente_fichador_global.set_color_lcd(0, 255, 100)
-                            cliente_fichador_global.beep("ok")
-                        estado_alta = None
-
-                # Reconocimiento de gestos y eventos
-                gesto_detectado_texto = None
-                geometria_valida = False
-
-                if manos_detectadas and manos_detectadas.gestures and manos_detectadas.hand_landmarks:
-                    categoria_gesto = manos_detectadas.gestures[0][0].category_name
-                    muñeca = manos_detectadas.hand_landmarks[0][0]
-                    x_muñeca = int(muñeca.x * ancho)
-                    y_muñeca = int(muñeca.y * alto)
-
-                    for p_info in pistas_visibles:
-                        if not p_info["reconocido"]:
-                            continue
-                        usuario = p_info["nombre"]
-                        distancia_u = p_info["distancia"]
-                        x_o, y_o, w_c, h_c = p_info["bbox"]
-                        centro_x = x_o + (w_c / 2.0)
-                        geometria_ok = (y_o <= y_muñeca <= y_o + h_c) and (abs(x_muñeca - centro_x) < (w_c * 2.5))
-
-                        if geometria_ok:
-                            geometria_valida = True
-                            gesto_detectado_texto = f"{categoria_gesto} (Geometría OK)"
-                            ahora = time.time()
-                            if ahora - ultimo_gesto_tiempo.get(usuario, 0.0) >= cooldown_gesto:
-                                estado_usuario = repositorio.obtener_estado_usuario(usuario)
-
-                                if categoria_gesto == "Open_Palm" and estado_usuario == "FUERA":
-                                    repositorio.registrar_evento("entrada", nombre=usuario, metodo="cara+gesto", distancia=distancia_u, proyecto=proyecto)
-                                    ultimo_gesto_tiempo[usuario] = ahora
-                                    mensaje_notificacion = f"ENTRADA REGISTRADA: {usuario} (d={distancia_u:.2f})"
-                                    tiempo_fin_notificacion = ahora + 3.0
-                                    cliente_fichador_global.enviar_mensaje_lcd(usuario, "Ingreso OK")
-                                    cliente_fichador_global.set_color_lcd(0, 255, 0)
-                                    cliente_fichador_global.set_led("verde", 1)
-                                    cliente_fichador_global.beep("ok")
-
-                                elif categoria_gesto == "Thumb_Up" and estado_usuario == "DENTRO":
-                                    repositorio.registrar_evento("salida", nombre=usuario, metodo="cara+gesto", distancia=distancia_u, proyecto=proyecto)
-                                    ultimo_gesto_tiempo[usuario] = ahora
-                                    mensaje_notificacion = f"SALIDA REGISTRADA: {usuario}"
-                                    tiempo_fin_notificacion = ahora + 3.0
-                                    cliente_fichador_global.enviar_mensaje_lcd(usuario, "Egreso OK")
-                                    cliente_fichador_global.set_color_lcd(0, 150, 255)
-                                    cliente_fichador_global.set_led("verde", 1)
-                                    cliente_fichador_global.beep("ok")
-                        else:
-                            gesto_detectado_texto = f"{categoria_gesto} (Lejos del rostro)"
-
-                # HUD
-                for p_info in pistas_visibles:
-                    x_o, y_o, w_c, h_c = p_info["bbox"]
-                    x_d, y_d = x_o + w_c, y_o + h_c
-                    if not p_info["evaluado"]:
-                        cv.rectangle(cuadro, (x_o, y_o), (x_d, y_d), (0, 255, 255), 2)
-                        cv.putText(cuadro, f"Estabilizando {p_info['contador_estable']}/{p_info['meta_estable']}...", (x_o, max(20, y_o - 10)), cv.FONT_HERSHEY_SIMPLEX, 0.55, (0, 255, 255), 2)
-                    elif p_info["reconocido"]:
-                        cv.rectangle(cuadro, (x_o, y_o), (x_d, y_d), (0, 255, 0), 2)
-                        estado_u = repositorio.obtener_estado_usuario(p_info["nombre"])
-                        cv.putText(cuadro, f"{p_info['nombre']} [{estado_u}]", (x_o, max(20, y_o - 10)), cv.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2)
-                        cv.putText(cuadro, f"d: {p_info['distancia']:.2f} / umbral: {umbral:.2f}", (x_o, y_d + 20), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-                    else:
-                        cv.rectangle(cuadro, (x_o, y_o), (x_d, y_d), (0, 0, 255), 2)
-                        cv.putText(cuadro, f"Desconocido (d: {p_info['distancia']:.2f} / {umbral:.2f})", (x_o, max(20, y_o - 10)), cv.FONT_HERSHEY_SIMPLEX, 0.55, (0, 0, 255), 2)
-
-                fps_actual = estabilizador.medidor_fps.fps_actual
-                total_presentes = repositorio.obtener_conteo_presentes()
-                cv.rectangle(cuadro, (0, 0), (ancho, 36), (30, 30, 30), -1)
-                encabezado = f"LIS Control | Motor: {extractor.nombre_modelo} | FPS: {fps_actual:.1f} | Presentes: {total_presentes}"
-                cv.putText(cuadro, encabezado, (15, 24), cv.FONT_HERSHEY_SIMPLEX, 0.55, (240, 240, 240), 1, cv.LINE_AA)
-
-                if estado_alta is not None and estado_alta.get("activo"):
-                    cant = len(estado_alta["muestras"])
-                    cv.rectangle(cuadro, (0, 40), (ancho, 75), (0, 140, 255), -1)
-                    cv.putText(cuadro, f"ALTA EN CURSO: Muestra {cant + 1}/{muestras_alta_objetivo} de {estado_alta['nombre']}...", (15, 65), cv.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
-
-                if gesto_detectado_texto:
-                    color_g = (0, 255, 0) if geometria_valida else (0, 165, 255)
-                    cv.putText(cuadro, f"Mano: {gesto_detectado_texto}", (15, alto - 50), cv.FONT_HERSHEY_SIMPLEX, 0.55, color_g, 2)
-
-                if mensaje_notificacion and time.time() < tiempo_fin_notificacion:
-                    cv.rectangle(cuadro, (0, alto - 40), (ancho, alto), (0, 120, 0), -1)
-                    cv.putText(cuadro, mensaje_notificacion, (20, alto - 12), cv.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2)
+                if pista.gesto_actual == nombre_gesto:
+                    pista.frames_gesto += 1
                 else:
+                    pista.gesto_actual = nombre_gesto
+                    pista.frames_gesto = 1
+
+                # Barra de progreso de confirmación del gesto sobre la cara
+                progreso = min(1.0, pista.frames_gesto / float(self.frames_gesto_req))
+                ancho_barra = int(w * progreso)
+                cv.rectangle(frame_bgr, (x, y - 12), (x + w, y - 4), (40, 40, 40), -1)
+                cv.rectangle(frame_bgr, (x, y - 12), (x + ancho_barra, y - 4), (0, 230, 140), -1)
+
+                if pista.frames_gesto >= self.frames_gesto_req:
+                    pista.frames_gesto = 0
+                    ahora_ts = time.time()
+                    ult = self.ultimo_disparo_por_persona.get(pista.nombre, 0.0)
+                    if ahora_ts - ult < self.cooldown_seg:
+                        continue
+
+                    esta_dentro = pista.nombre in estados_presentes
+                    tipo_ev = "entrada" if nombre_gesto == "Open_Palm" else "salida"
+
+                    if tipo_ev == "entrada" and esta_dentro:
+                        self.banner_feedback = (f"{pista.nombre} ya figura DENTRO del LIS", (230, 160, 20), ahora_ts + 2.5)
+                        self.ultimo_disparo_por_persona[pista.nombre] = ahora_ts
+                        continue
+                    if tipo_ev == "salida" and not esta_dentro:
+                        self.banner_feedback = (f"{pista.nombre} ya figura FUERA del LIS", (230, 160, 20), ahora_ts + 2.5)
+                        self.ultimo_disparo_por_persona[pista.nombre] = ahora_ts
+                        continue
+
+                    evento = crear_evento(
+                        tipo=tipo_ev,
+                        origen="pipeline-facial",
+                        metodo="cara+gesto",
+                        persona_id=pista.nombre,
+                        distancia=pista.distancia,
+                        meta={
+                            "nombre": pista.nombre,
+                            "proyecto": self.proyecto,
+                            "umbral": self.umbral,
+                            "modelo": "vggface2",
+                        },
+                    )
+                    self.repositorio.registrar_evento(evento)
+                    self.fichador.notificar_evento_acceso(pista.nombre, tipo_ev, pista.distancia)
+                    self.ultimo_disparo_por_persona[pista.nombre] = ahora_ts
+                    color_b = (16, 185, 129) if tipo_ev == "entrada" else (235, 130, 50)
+                    self.banner_feedback = (
+                        f"{tipo_ev.upper()} REGISTRADA: {pista.nombre} (d={pista.distancia:.2f})",
+                        color_b,
+                        ahora_ts + 3.5,
+                    )
+                    logging.info("Evento %s registrado para %s (d=%.3f)", tipo_ev, pista.nombre, pista.distancia)
+
+    def _dibujar_hud(self, frame_bgr: np.ndarray, fps: float, presentes: dict[str, Any]) -> None:
+        fh, fw = frame_bgr.shape[:2]
+
+        # Header superior oscuro
+        overlay = frame_bgr.copy()
+        cv.rectangle(overlay, (0, 0), (fw, 44), (18, 24, 38), -1)
+        cv.addWeighted(overlay, 0.82, frame_bgr, 0.18, 0, frame_bgr)
+
+        texto_hdr = (
+            f"LIS Vision | FPS: {fps:.1f} | Perfiles: {len(self.base_embeddings)} | "
+            f"Presentes: {len(presentes)} | Umbral d<{self.umbral:.2f}"
+        )
+        cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.56, (235, 240, 245), 1, cv.LINE_AA)
+
+        for pista in self.pistas:
+            x, y, w, h = pista.bbox
+            if pista.frames_estables < self.frames_estable_req:
+                color = (40, 200, 250)
+                etiqueta_sup = f"Estabilizando ({pista.frames_estables}/{self.frames_estable_req})"
+                etiqueta_inf = "Calculando embedding..."
+            elif pista.reconocido:
+                color = (16, 200, 120)
+                estado_str = "DENTRO" if pista.nombre in presentes else "FUERA"
+                etiqueta_sup = f"{pista.nombre} [{estado_str}]"
+                etiqueta_inf = f"d: {pista.distancia:.2f} / umbral: {self.umbral:.2f}"
+            else:
+                color = (60, 65, 235)
+                etiqueta_sup = "Desconocido"
+                etiqueta_inf = f"d: {pista.distancia:.2f} (umbral: {self.umbral:.2f})"
+
+            cv.rectangle(frame_bgr, (x, y), (x + w, y + h), color, 2)
+            cv.rectangle(frame_bgr, (x, max(45, y - 30)), (x + max(w, 190), y), color, -1)
+            cv.putText(
+                frame_bgr,
+                etiqueta_sup,
+                (x + 6, max(62, y - 9)),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.52,
+                (255, 255, 255),
+                2,
+                cv.LINE_AA,
+            )
+            cv.putText(
+                frame_bgr,
+                etiqueta_inf,
+                (x, min(fh - 10, y + h + 20)),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.50,
+                color,
+                2,
+                cv.LINE_AA,
+            )
+
+        # Banner de enrolamiento activo
+        if self.nombre_enrolando:
+            orden = self.repositorio.leer_estado_runtime("orden_enrolamiento", {})
+            msg = orden.get("mensaje", f"Enrolando a {self.nombre_enrolando}...")
+            cv.rectangle(frame_bgr, (0, fh - 52), (fw, fh), (15, 110, 210), -1)
+            cv.putText(frame_bgr, msg, (16, fh - 18), cv.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2, cv.LINE_AA)
+        elif self.banner_feedback and time.time() < self.banner_feedback[2]:
+            msg, col, _ = self.banner_feedback
+            cv.rectangle(frame_bgr, (0, fh - 48), (fw, fh), col, -1)
+            cv.putText(frame_bgr, msg, (16, fh - 16), cv.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2, cv.LINE_AA)
+
+    def ejecutar(self) -> None:
+        BaseOptions = mp.tasks.BaseOptions
+        FaceDetector = mp.tasks.vision.FaceDetector
+        FaceDetectorOptions = mp.tasks.vision.FaceDetectorOptions
+        GestureRecognizer = mp.tasks.vision.GestureRecognizer
+        GestureRecognizerOptions = mp.tasks.vision.GestureRecognizerOptions
+        VisionRunningMode = mp.tasks.vision.RunningMode
+
+        opciones_caras = FaceDetectorOptions(
+            base_options=BaseOptions(model_asset_path=str(self.ruta_modelo_caras)),
+            running_mode=VisionRunningMode.LIVE_STREAM,
+            result_callback=self._cb_caras,
+        )
+        opciones_manos = GestureRecognizerOptions(
+            base_options=BaseOptions(model_asset_path=str(self.ruta_modelo_manos)),
+            running_mode=VisionRunningMode.LIVE_STREAM,
+            result_callback=self._cb_manos,
+        )
+
+        cap = self._abrir_camara()
+        fps_actual = 25.0
+        t_prev = time.perf_counter()
+        frame_idx = 0
+
+        with (
+            FaceDetector.create_from_options(opciones_caras) as detector_caras,
+            GestureRecognizer.create_from_options(opciones_manos) as reconocedor_manos,
+        ):
+            while True:
+                ok, frame = cap.read()
+                if not ok or frame is None:
+                    frame = np.zeros((480, 640, 3), dtype=np.uint8)
                     cv.putText(
-                        cuadro,
-                        "[Doble Clic / Clic Derecho / Tecla 'A']: Registrar Perfil",
-                        (15, alto - 15),
+                        frame,
+                        "Cámara sin señal - Modo Simulado Activo",
+                        (60, 240),
                         cv.FONT_HERSHEY_SIMPLEX,
-                        0.45,
-                        (200, 200, 200),
-                        1,
-                        cv.LINE_AA,
+                        0.7,
+                        (180, 180, 180),
+                        2,
+                    )
+                    time.sleep(0.05)
+                elif self.espejo:
+                    frame = cv.flip(frame, 1)
+
+                frame_idx += 1
+                t_now = time.perf_counter()
+                dt = max(1e-4, t_now - t_prev)
+                t_prev = t_now
+                fps_actual = 0.9 * fps_actual + 0.1 * (1.0 / dt)
+
+                if frame_idx % 20 == 0:
+                    self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
+
+                rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+                mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+                ts_ms = int(time.time() * 1000)
+
+                detector_caras.detect_async(mp_img, ts_ms)
+                reconocedor_manos.recognize_async(mp_img, ts_ms)
+
+                cajas: list[tuple[int, int, int, int]] = []
+                if self.ultimas_caras_mp and self.ultimas_caras_mp.detections:
+                    for det in self.ultimas_caras_mp.detections:
+                        bb = det.bounding_box
+                        cajas.append((int(bb.origin_x), int(bb.origin_y), int(bb.width), int(bb.height)))
+
+                self._actualizar_pistas(frame, cajas)
+                self._procesar_enrolamiento_activo(frame_idx)
+
+                eventos_recientes = self.repositorio.listar_eventos(desde_seq=0, limite=2000)
+                estado_derivado = derivar_estado(eventos_recientes)
+                presentes = estado_derivado["presentes"]
+
+                self._evaluar_gestos_y_eventos(frame, presentes)
+                self._dibujar_hud(frame, fps_actual, presentes)
+
+                if frame_idx % 2 == 0:
+                    ok_jpg, buf = cv.imencode(".jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 82])
+                    if ok_jpg:
+                        tmp_path = self.ruta_frame_compartido.with_suffix(".tmp")
+                        tmp_path.write_bytes(buf.tobytes())
+                        tmp_path.replace(self.ruta_frame_compartido)
+
+                if frame_idx % 15 == 0:
+                    self.repositorio.guardar_estado_runtime(
+                        "camara_estado",
+                        {
+                            "activa": True,
+                            "fps": round(fps_actual, 1),
+                            "rostros_en_cuadro": len(self.pistas),
+                        },
                     )
 
-                # Exportar cuadro para clientes web (streaming MJPEG a celulares y tablets)
-                guardar_frame_jpeg(cuadro)
-
-                # Visualización local opcional en ventana OpenCV
-                if ventana_activa:
-                    cv.imshow("LIS Control", cuadro)
+                if self.mostrar_ventana:
+                    cv.imshow("LIS - Reconocimiento Facial y Gestos", frame)
                     tecla = cv.waitKey(1) & 0xFF
                     if tecla == 27:
                         break
-                    elif tecla in (ord('a'), ord('A'), ord('r'), ord('R')):
-                        logger.info("Tecla [A/R]: Iniciar alta con el rostro enfocado.")
-                        solicitud_alta_click = {"x": -1, "y": -1}
-                    elif tecla in (ord('i'), ord('I')):
-                        # Disparo simulado por teclado
-                        logger.info("Tecla [I]: Simular ingreso.")
-                        if pistas_visibles:
-                            repositorio.registrar_evento("entrada", nombre=pistas_visibles[0]["nombre"], metodo="manual", distancia=0.45)
-                    elif tecla in (ord('e'), ord('E')):
-                        logger.info("Tecla [E]: Simular egreso.")
-                        if pistas_visibles:
-                            repositorio.registrar_evento("salida", nombre=pistas_visibles[0]["nombre"], metodo="manual", distancia=0.45)
-                    elif tecla in (ord('t'), ord('T')):
-                        cliente_fichador_global.simular_touch()
+                else:
+                    time.sleep(0.01)
 
-        finally:
-            if cliente_fichador_global:
-                cliente_fichador_global.cerrar()
-            if fuente_video_global:
-                fuente_video_global.liberar()
-            if ventana_activa:
-                cv.destroyAllWindows()
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Pipeline de Reconocimiento y Asistencia LIS")
-    parser.add_argument("--camara", type=str, default=None, help="Índice (0, 1), URL DroidCam (http://...) o 'simulada'")
-    parser.add_argument("--sin-ventana", action="store_true", help="Desactiva cv.imshow (para ver exclusivamente desde la tablet web)")
-    parser.add_argument("--serie", type=str, default=None, help="Puerto COM / tty del Arduino Fichador")
-    args = parser.parse_args()
-
-    ejecutar_pipeline(
-        fuente_camara=args.camara,
-        mostrar_ventana=not args.sin_ventana,
-        puerto_serie=args.serie,
-    )
+        cap.release()
+        if self.mostrar_ventana:
+            cv.destroyAllWindows()
 
 
 if __name__ == "__main__":
-    main()
+    pipeline = PipelineReconocimientoLIS()
+    pipeline.ejecutar()

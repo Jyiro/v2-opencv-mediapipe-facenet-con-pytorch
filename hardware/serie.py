@@ -1,198 +1,163 @@
-"""Cliente de comunicación serie para el Fichador Arduino UNO y Base Shield Grove.
-
-Implementa el protocolo oficial de la Sección 8 (115200 baudios, delimitado por '|'):
-- Comandos a Arduino: MSG, RGB, BEEP, LED, PING.
-- Eventos desde Arduino: TOUCH, BTN, PONG, SENS.
-- Modo Simulado interactivo cuando no hay placa física conectada.
-"""
-
 from __future__ import annotations
-
-from dataclasses import dataclass, field
 import logging
-import threading
-import time
-from typing import Any, Callable
+from datetime import datetime
+from typing import Any
 
-logger = logging.getLogger(__name__)
+from nucleo.base_datos import RepositorioLIS
 
 
 def truncar_16(texto: str) -> str:
-    """Trunca el texto a 16 caracteres para compatibilidad con display LCD 16x2."""
-    return str(texto)[:16]
-
-
-@dataclass
-class EstadoFichadorVirtual:
-    """Estado en memoria del Fichador simulado para la interfaz web."""
-
-    linea1: str = "LIS Control"
-    linea2: str = "Esperando..."
-    rgb: tuple[int, int, int] = (0, 100, 255)
-    leds: dict[str, int] = field(default_factory=lambda: {"azul": 0, "verde": 0, "rojo": 0})
-    ultimo_beep: str | None = None
-    ultimo_beep_tiempo: float = 0.0
+    limpio = str(texto).replace("|", " ").strip()
+    return limpio[:16].ljust(16)
 
 
 class ClienteFichadorSerie:
-    """Gestiona la comunicación con el Arduino del Fichador o emula su comportamiento."""
+    """
+    Cliente del protocolo serie PC <-> Arduino UNO (Sección 8).
+    Trunca cada línea del LCD a 16 caracteres exactos y degrada limpiamente a modo simulado.
+    """
+
+    truncar_16 = staticmethod(truncar_16)
 
     def __init__(
         self,
+        repositorio: RepositorioLIS | None = None,
         puerto: str | None = None,
         baudios: int = 115200,
-        simulado: bool = False,
-        callback_touch: Callable[[], None] | None = None,
-        callback_boton: Callable[[], None] | None = None,
+        simular: bool = True,
+        simulado: bool | None = None,
     ) -> None:
+        self.repositorio = repositorio
         self.puerto = puerto
         self.baudios = baudios
-        self.simulado = simulado
-        self.callback_touch = callback_touch
-        self.callback_boton = callback_boton
+        if simulado is not None:
+            simular = simulado
+        self.modo_simulado = simular
+        self._serial = None
+        self.estado: dict[str, Any] = {
+            "conectado_fisico": False,
+            "modo_simulado": True,
+            "linea1": "LIS UTN-FRC     ",
+            "linea2": "SISTEMA ACTIVO  ",
+            "rgb": [0, 180, 120],
+            "leds": {"azul": 0, "verde": 1, "rojo": 0},
+            "ultimo_beep": {"tipo": "none", "t": ""},
+            "ultimo_comando": "INIT",
+        }
 
-        self.ser = None
-        self.hilo_lector: threading.Thread | None = None
-        self.activo = True
-        self.lock = threading.Lock()
-
-        self.estado_virtual = EstadoFichadorVirtual()
-
-        if not self.simulado and self.puerto:
-            self._conectar_serie()
-        else:
-            self.simulado = True
-            logger.info("Fichador iniciado en MODO SIMULADO (virtual).")
-
-    def _conectar_serie(self) -> None:
-        try:
-            import serial  # type: ignore
-
-            logger.info("Intentando abrir puerto serie %s a %d baudios...", self.puerto, self.baudios)
-            self.ser = serial.Serial(self.puerto, self.baudios, timeout=1.0)
-            time.sleep(2.0)  # Esperar reinicio de Arduino al abrir DTR
-            self.simulado = False
-
-            # Iniciar hilo lector de respuestas y eventos físicos
-            self.hilo_lector = threading.Thread(target=self._bucle_lectura_serie, daemon=True)
-            self.hilo_lector.start()
-            logger.info("Fichador físico conectado exitosamente en %s.", self.puerto)
-        except Exception as e:
-            logger.warning("No se pudo conectar al Fichador físico (%s). Fallback a MODO SIMULADO.", e)
-            self.simulado = True
-            self.ser = None
-
-    def _bucle_lectura_serie(self) -> None:
-        while self.activo and self.ser and self.ser.is_open:
+        if not simular and puerto:
             try:
-                linea = self.ser.readline().decode("ascii", errors="ignore").strip()
-                if not linea:
-                    continue
+                import serial  # type: ignore
 
-                partes = linea.split("|")
-                comando = partes[0].upper()
+                self._serial = serial.Serial(puerto, baudios, timeout=0.2)
+                self.enviar_comando("PING")
+                resp = self._serial.readline().decode("ascii", errors="ignore").strip()
+                if resp == "PONG":
+                    self.modo_simulado = False
+                    self.estado["conectado_fisico"] = True
+                    self.estado["modo_simulado"] = False
+                    logging.info("Fichador Arduino conectado en %s", puerto)
+                else:
+                    logging.warning("Arduino no respondió PONG en %s; usando modo simulado.", puerto)
+            except Exception as exc:
+                logging.info("Puerto serie no disponible (%s); degradando a modo simulado.", exc)
+                self.modo_simulado = True
 
-                if comando == "TOUCH":
-                    logger.info("Evento físico recibido: TOUCH")
-                    if self.callback_touch:
-                        self.callback_touch()
-                elif comando == "BTN":
-                    logger.info("Evento físico recibido: BTN")
-                    if self.callback_boton:
-                        self.callback_boton()
-                elif comando == "PONG":
-                    logger.debug("Respuesta recibida: PONG")
+        self._persistir()
+
+    @staticmethod
+    def truncar_16(texto: str) -> str:
+        limpio = texto.replace("|", " ").strip()
+        return limpio[:16].ljust(16)
+
+    def enviar_comando(self, comando: str) -> None:
+        linea = comando.strip() + "\n"
+        self.estado["ultimo_comando"] = comando.strip()
+        if self._serial and not self.modo_simulado:
+            try:
+                self._serial.write(linea.encode("ascii", errors="replace"))
             except Exception:
-                time.sleep(0.1)
+                logging.warning("Fallo escritura serie; pasando a modo simulado.")
+                self.modo_simulado = True
+                self.estado["modo_simulado"] = True
+
+    def mostrar_mensaje(self, linea1: str, linea2: str = "") -> None:
+        l1 = self.truncar_16(linea1)
+        l2 = self.truncar_16(linea2)
+        self.estado["linea1"] = l1
+        self.estado["linea2"] = l2
+        self.enviar_comando(f"MSG|{l1.strip()}|{l2.strip()}")
+        self._persistir()
+
+    def cambiar_rgb(self, r: int, g: int, b: int) -> None:
+        r, g, b = max(0, min(255, int(r))), max(0, min(255, int(g))), max(0, min(255, int(b)))
+        self.estado["rgb"] = [r, g, b]
+        self.enviar_comando(f"RGB|{r}|{g}|{b}")
+        self._persistir()
+
+    def sonar_beep(self, patron: str = "ok") -> None:
+        patron = patron if patron in ("ok", "err", "warn") else "ok"
+        self.estado["ultimo_beep"] = {
+            "tipo": patron,
+            "t": datetime.now().strftime("%H:%M:%S.%f"),
+        }
+        self.enviar_comando(f"BEEP|{patron}")
+        self._persistir()
+
+    def cambiar_led(self, color: str, encendido: bool) -> None:
+        if color in ("azul", "verde", "rojo"):
+            val = 1 if encendido else 0
+            self.estado["leds"][color] = val
+            self.enviar_comando(f"LED|{color}|{val}")
+            self._persistir()
+
+    def notificar_evento_acceso(self, nombre: str, tipo: str, distancia: float | None = None) -> None:
+        hora = datetime.now().strftime("%H:%M")
+        nombre_corto = nombre.upper()[:10]
+        if tipo == "entrada":
+            self.cambiar_rgb(16, 185, 129)
+            self.cambiar_led("verde", True)
+            self.cambiar_led("azul", False)
+            self.cambiar_led("rojo", False)
+            dist_str = f"d:{distancia:.2f}" if distancia is not None else "PIN/QR"
+            self.mostrar_mensaje(f"IN: {nombre_corto}", f"{hora} {dist_str}")
+            self.sonar_beep("ok")
+        elif tipo == "salida":
+            self.cambiar_rgb(59, 130, 246)
+            self.cambiar_led("azul", True)
+            self.cambiar_led("verde", False)
+            self.cambiar_led("rojo", False)
+            self.mostrar_mensaje(f"OUT: {nombre_corto}", f"HASTA LUEGO {hora}")
+            self.sonar_beep("ok")
+        else:
+            self.cambiar_rgb(239, 68, 68)
+            self.cambiar_led("rojo", True)
+            self.cambiar_led("verde", False)
+            self.cambiar_led("azul", False)
+            self.mostrar_mensaje("NO RECONOCIDO", "USE PIN O QR")
+            self.sonar_beep("err")
 
     def enviar_mensaje_lcd(self, linea1: str, linea2: str = "") -> None:
-        """Envía texto al LCD 16x2 truncando a 16 caracteres por línea."""
-        l1 = truncar_16(linea1)
-        l2 = truncar_16(linea2)
-        with self.lock:
-            self.estado_virtual.linea1 = l1
-            self.estado_virtual.linea2 = l2
-
-        self._transmitir(f"MSG|{l1}|{l2}\n")
+        self.mostrar_mensaje(linea1, linea2)
 
     def set_color_lcd(self, r: int, g: int, b: int) -> None:
-        """Configura el color de fondo RGB del display Grove (0-255)."""
-        r_c = max(0, min(255, int(r)))
-        g_c = max(0, min(255, int(g)))
-        b_c = max(0, min(255, int(b)))
-        with self.lock:
-            self.estado_virtual.rgb = (r_c, g_c, b_c)
+        self.cambiar_rgb(r, g, b)
 
-        self._transmitir(f"RGB|{r_c}|{g_c}|{b_c}\n")
+    def set_led(self, color: str, encendido: bool | int) -> None:
+        self.cambiar_led(color, bool(encendido))
 
     def beep(self, patron: str = "ok") -> None:
-        """Emite un sonido de buzzer ('ok', 'err', 'warn')."""
-        p = patron.lower().strip()
-        if p not in ("ok", "err", "warn"):
-            p = "ok"
-        with self.lock:
-            self.estado_virtual.ultimo_beep = p
-            self.estado_virtual.ultimo_beep_tiempo = time.time()
-
-        self._transmitir(f"BEEP|{p}\n")
-
-    def set_led(self, color: str, estado: int | bool) -> None:
-        """Enciende o apaga uno de los LEDs DIP ('azul', 'verde', 'rojo')."""
-        c = color.lower().strip()
-        e = 1 if estado else 0
-        with self.lock:
-            if c in self.estado_virtual.leds:
-                self.estado_virtual.leds[c] = e
-
-        self._transmitir(f"LED|{c}|{e}\n")
-
-    def ping(self) -> bool:
-        """Envía PING al Arduino para verificar presencia física."""
-        if self.simulado or not self.ser:
-            return True
-        try:
-            self._transmitir("PING\n")
-            return True
-        except Exception:
-            return False
-
-    def _transmitir(self, comando: str) -> None:
-        if self.ser and self.ser.is_open:
-            try:
-                self.ser.write(comando.encode("ascii"))
-                self.ser.flush()
-            except Exception:
-                logger.exception("Error al transmitir comando serie: %s", comando)
-
-    def simular_touch(self) -> None:
-        """Dispara el evento de sensor táctil desde el simulador o tablero web."""
-        logger.info("Simulación: Sensor TOUCH accionado.")
-        if self.callback_touch:
-            self.callback_touch()
-
-    def simular_boton(self) -> None:
-        """Dispara el evento de botón desde el simulador o tablero web."""
-        logger.info("Simulación: Botón Fichador presionado.")
-        if self.callback_boton:
-            self.callback_boton()
+        self.sonar_beep(patron)
 
     def obtener_estado_virtual(self) -> dict[str, Any]:
-        """Devuelve el estado serializado para alimentar la interfaz web interactiva."""
-        with self.lock:
-            return {
-                "linea1": self.estado_virtual.linea1,
-                "linea2": self.estado_virtual.linea2,
-                "rgb": list(self.estado_virtual.rgb),
-                "leds": dict(self.estado_virtual.leds),
-                "ultimo_beep": self.estado_virtual.ultimo_beep,
-                "ultimo_beep_tiempo": self.estado_virtual.ultimo_beep_tiempo,
-                "simulado": self.simulado,
-            }
+        copia = dict(self.estado)
+        if isinstance(self.estado.get("ultimo_beep"), dict):
+            copia["ultimo_beep"] = self.estado["ultimo_beep"].get("tipo", "none")
+        return copia
 
-    def cerrar(self) -> None:
-        self.activo = False
-        if self.ser:
+    def _persistir(self) -> None:
+        if self.repositorio is not None:
             try:
-                self.ser.close()
+                self.repositorio.guardar_estado_runtime("fichador_lcd", self.estado)
             except Exception:
                 pass

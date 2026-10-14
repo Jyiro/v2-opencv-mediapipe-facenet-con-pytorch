@@ -1,137 +1,97 @@
-"""Módulo de comparación vectorizada de embeddings faciales.
-
-Implementa la matemática de matching con soporte para múltiples muestras por persona
-y métodos de agregación por distancia mínima o vector promedio normalizado.
-"""
-
 from __future__ import annotations
-
-import logging
 from typing import Any
-
 import numpy as np
 
 
-logger = logging.getLogger(__name__)
+def normalizar_vector(v: np.ndarray) -> np.ndarray:
+    norma = np.linalg.norm(v)
+    if norma == 0:
+        return v
+    return v / norma
 
 
 def calcular_distancia_persona(
-    embedding_actual: np.ndarray,
-    muestras_persona: list[np.ndarray],
+    embedding: np.ndarray | None = None,
+    lista_vectores: list[np.ndarray] | None = None,
     metodo: str = "minimo",
+    *,
+    embedding_actual: np.ndarray | None = None,
+    muestras_persona: list[np.ndarray] | None = None,
 ) -> float:
-    """Calcula la distancia euclídea entre el embedding actual y las muestras de una persona.
-
-    Args:
-        embedding_actual: Vector 1D (np.float32) de la cara detectada.
-        muestras_persona: Lista de vectores 1D de la persona registrada.
-        metodo: "minimo" toma la distancia más cercana; "promedio" compara contra
-                el vector promedio normalizado.
-
-    Returns:
-        Distancia euclídea (float).
-    """
-    if not muestras_persona:
+    emb = embedding if embedding is not None else embedding_actual
+    muestras = lista_vectores if lista_vectores is not None else muestras_persona
+    if emb is None or not muestras:
         return float("inf")
-
-    matriz_muestras = np.vstack(muestras_persona)  # Shape (N, D)
-
+    matriz = np.vstack([np.asarray(v, dtype=np.float32).flatten() for v in muestras])
+    emb_c = np.asarray(emb, dtype=np.float32).flatten()
     if metodo == "promedio":
-        vector_promedio = np.mean(matriz_muestras, axis=0)
-        norma = np.linalg.norm(vector_promedio)
+        centroide = np.mean(matriz, axis=0)
+        norma = np.linalg.norm(centroide)
         if norma > 0:
-            vector_promedio = vector_promedio / norma
-        return float(np.linalg.norm(embedding_actual - vector_promedio))
-
-    # Método "minimo": distancia vectorizada contra cada fila
-    distancias = np.linalg.norm(matriz_muestras - embedding_actual, axis=1)
+            centroide = centroide / norma
+        return float(np.linalg.norm(centroide - emb_c))
+    distancias = np.linalg.norm(matriz - emb_c, axis=1)
     return float(np.min(distancias))
-
-
-def consultar_embeddings(
-    embedding_actual: np.ndarray | None,
-    base_embeddings: dict[str, list[np.ndarray]],
-    umbral: float = 0.8,
-    metodo: str = "minimo",
-) -> dict[str, Any]:
-    """Consulta una base de embeddings agrupada por persona y determina la mejor coincidencia.
-
-    Args:
-        embedding_actual: Vector 1D del rostro a identificar.
-        base_embeddings: Diccionario {nombre: [vector1, vector2, ...]}.
-        umbral: Distancia euclídea máxima admisible (menor es más estricto).
-        metodo: "minimo" o "promedio".
-
-    Returns:
-        Diccionario con las claves:
-        - "reconocido": bool indicando si la distancia mínima superó el umbral.
-        - "nombre": nombre de la persona si reconocido, o "Desconocido".
-        - "distancia": distancia euclídea cruda mínima encontrada (float).
-        - "umbral": umbral configurado.
-    """
-    if embedding_actual is None or not base_embeddings:
-        return {
-            "reconocido": False,
-            "nombre": "Desconocido",
-            "distancia": float("inf"),
-            "umbral": float(umbral),
-        }
-
-    minima_distancia_global = float("inf")
-    mejor_candidato: str | None = None
-
-    for nombre, lista_vectores in base_embeddings.items():
-        if not lista_vectores:
-            continue
-        distancia = calcular_distancia_persona(
-            embedding_actual=embedding_actual,
-            muestras_persona=lista_vectores,
-            metodo=metodo,
-        )
-        if distancia < minima_distancia_global:
-            minima_distancia_global = distancia
-            mejor_candidato = nombre
-
-    reconocido = minima_distancia_global < umbral and mejor_candidato is not None
-    nombre_final = mejor_candidato if reconocido else "Desconocido"
-
-    return {
-        "reconocido": reconocido,
-        "nombre": nombre_final,
-        "distancia": round(minima_distancia_global, 4),
-        "umbral": float(umbral),
-    }
-
-
-def comparar_caras_legacy(
-    embedding_actual: np.ndarray | None,
-    base_embeddings: dict[str, list[np.ndarray]],
-    umbral: float = 0.8,
-    metodo: str = "minimo",
-) -> str | None:
-    """Función de conveniencia retrocompatible con el código original.
-
-    Devuelve el nombre de la persona si fue reconocida, o None si no.
-    """
-    resultado = consultar_embeddings(
-        embedding_actual=embedding_actual,
-        base_embeddings=base_embeddings,
-        umbral=umbral,
-        metodo=metodo,
-    )
-    return resultado["nombre"] if resultado["reconocido"] else None
 
 
 def existe_coincidencia(
     embedding_actual: np.ndarray,
-    base_embeddings: dict[str, list[np.ndarray]],
-    umbral: float = 0.8,
+    base_embeddings: dict[str, list[np.ndarray]] | list[np.ndarray],
+    umbral: float = 0.80,
+    metodo: str = "minimo",
 ) -> bool:
-    """Verifica si un embedding ya pertenece a una persona en la base de datos."""
-    resultado = consultar_embeddings(
-        embedding_actual=embedding_actual,
-        base_embeddings=base_embeddings,
-        umbral=umbral,
-        metodo="minimo",
-    )
-    return bool(resultado["reconocido"])
+    if isinstance(base_embeddings, dict):
+        res = consultar_embeddings(
+            embedding_actual=embedding_actual,
+            base_embeddings=base_embeddings,
+            umbral=umbral,
+            metodo=metodo,
+        )
+        return bool(res["reconocido"])
+    elif isinstance(base_embeddings, list):
+        d = calcular_distancia_persona(embedding_actual=embedding_actual, muestras_persona=base_embeddings, metodo=metodo)
+        return bool(d < umbral)
+    return False
+
+
+def consultar_embeddings(
+    embedding: np.ndarray | None = None,
+    base_embeddings: dict[str, list[np.ndarray]] | None = None,
+    umbral: float = 0.80,
+    metodo: str = "minimo",
+    embedding_actual: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """
+    Compara un embedding de 512 dimensiones contra el diccionario {nombre: [emb1, emb2, ...]}.
+    Devuelve siempre la distancia euclídea cruda y el umbral empleado (Sección 6 y 11).
+    """
+    vector_consulta = embedding if embedding is not None else embedding_actual
+    if vector_consulta is None or not base_embeddings:
+        return {
+            "reconocido": False,
+            "nombre": "Desconocido",
+            "distancia": 9.99,
+            "umbral": umbral,
+            "candidato_mas_cercano": None,
+        }
+
+    emb_consulta = np.asarray(vector_consulta, dtype=np.float32).flatten()
+    mejor_nombre: str | None = None
+    menor_distancia: float = float("inf")
+
+    for nombre, lista_vectores in base_embeddings.items():
+        if not lista_vectores:
+            continue
+        dist = calcular_distancia_persona(emb_consulta, lista_vectores, metodo=metodo)
+        if dist < menor_distancia:
+            menor_distancia = dist
+            mejor_nombre = nombre
+
+    reconocido = menor_distancia < umbral and mejor_nombre is not None
+    return {
+        "reconocido": reconocido,
+        "nombre": mejor_nombre if reconocido else "Desconocido",
+        "distancia": round(menor_distancia, 4) if menor_distancia != float("inf") else 9.99,
+        "umbral": umbral,
+        "candidato_mas_cercano": mejor_nombre,
+    }

@@ -1,1056 +1,940 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>LIS — Tablero de Control y Fichador</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LIS — Plataforma de Herramientas Internas (UTN FRC)</title>
   <style>
     :root {
-      --bg-principal: #0d1117;
-      --bg-tarjeta: #161b22;
-      --borde: #30363d;
-      --texto: #f0f6fc;
-      --texto-secundario: #8b949e;
-      --azul-lis: #0066cc;
-      --azul-claro: #58a6ff;
-      --verde-ok: #238636;
-      --verde-brillante: #3fb950;
-      --rojo-alerta: #da3633;
-      --amarillo-aviso: #d29922;
-      --lcd-bg: rgb(0, 100, 255);
-      --radio: 12px;
+      --bg: #090d16;
+      --panel: #111827;
+      --panel-alt: #182235;
+      --border: #26334d;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --green: #10b981;
+      --blue: #3b82f6;
+      --amber: #f59e0b;
+      --red: #ef4444;
+      --purple: #8b5cf6;
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background-color: var(--bg-principal);
-      color: var(--texto);
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
       display: flex;
       flex-direction: column;
     }
-
     header {
-      background: var(--bg-tarjeta);
-      border-bottom: 1px solid var(--borde);
-      padding: 12px 18px;
+      background: rgba(17, 24, 39, 0.95);
+      border-bottom: 1px solid var(--border);
+      padding: 12px 22px;
       display: flex;
-      flex-wrap: wrap;
+      align-items: center;
       justify-content: space-between;
-      align-items: center;
-      gap: 10px;
+      flex-wrap: wrap;
+      gap: 14px;
+      position: sticky;
+      top: 0;
+      z-index: 50;
     }
-
-    .marca {
+    .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
-    }
-
-    .marca h1 {
-      font-size: 1.15rem;
-      font-weight: 700;
-      letter-spacing: 0.5px;
-    }
-
-    .badge-estado {
-      font-size: 0.75rem;
-      padding: 4px 8px;
-      border-radius: 20px;
-      background: rgba(35, 134, 54, 0.2);
-      color: var(--verde-brillante);
-      border: 1px solid var(--verde-ok);
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--verde-brillante);
-      animation: pulso 2s infinite;
-    }
-
-    @keyframes pulso {
-      0% { opacity: 1; }
-      50% { opacity: 0.3; }
-      100% { opacity: 1; }
-    }
-
-    /* Pestañas de Navegación */
-    .pestanas {
-      display: flex;
-      gap: 6px;
-      background: #090d13;
-      padding: 4px;
-      border-radius: 8px;
-      border: 1px solid var(--borde);
-      overflow-x: auto;
-      max-width: 100%;
-    }
-
-    .btn-pestana {
-      background: transparent;
-      border: none;
-      color: var(--texto-secundario);
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: all 0.2s ease;
-    }
-
-    .btn-pestana.activa {
-      background: var(--azul-lis);
-      color: #fff;
-    }
-
-    /* Contenido */
-    main {
-      flex: 1;
-      padding: 16px;
-      max-width: 1300px;
-      margin: 0 auto;
-      width: 100%;
-    }
-
-    .vista {
-      display: none;
-      animation: aparecer 0.2s ease-out;
-    }
-
-    .vista.activa {
-      display: block;
-    }
-
-    @keyframes aparecer {
-      from { opacity: 0; transform: translateY(4px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    /* Grid layout */
-    .grid-2 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 16px;
-    }
-
-    .grid-3 {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-      gap: 16px;
-    }
-
-    .tarjeta {
-      background: var(--bg-tarjeta);
-      border: 1px solid var(--borde);
-      border-radius: var(--radio);
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
       gap: 12px;
     }
-
-    .tarjeta-titulo {
-      font-size: 1rem;
-      font-weight: 600;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      color: var(--azul-claro);
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      padding-bottom: 8px;
-    }
-
-    /* Video Feed y Config Cámara */
-    .contenedor-video {
-      position: relative;
-      width: 100%;
-      background: #000;
+    .brand-badge {
+      background: linear-gradient(135deg, var(--green), var(--blue));
+      color: #06101e;
+      font-weight: 800;
+      padding: 6px 11px;
       border-radius: 8px;
-      overflow: hidden;
-      aspect-ratio: 4 / 3;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      border: 1px solid var(--borde);
+      letter-spacing: 0.5px;
     }
-
-    .video-img {
-      width: 100%;
-      height: 100%;
-      object-fit: contain;
-    }
-
-    .barra-camara {
+    .brand h1 { font-size: 1.08rem; font-weight: 700; }
+    .brand small { color: var(--muted); font-size: 0.78rem; display: block; }
+    .nav-tabs {
       display: flex;
       gap: 8px;
       flex-wrap: wrap;
     }
-
-    .input-texto {
-      background: #0d1117;
-      border: 1px solid var(--borde);
-      color: #fff;
-      padding: 8px 12px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      flex: 1;
-      min-width: 180px;
-    }
-
-    .input-texto:focus {
-      outline: none;
-      border-color: var(--azul-claro);
-    }
-
-    .btn {
-      background: #21262d;
-      border: 1px solid var(--borde);
-      color: var(--texto);
+    .tab-btn {
+      background: var(--panel-alt);
+      color: var(--text);
+      border: 1px solid var(--border);
       padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 0.85rem;
-      font-weight: 600;
+      border-radius: 8px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      font-weight: 600;
+      font-size: 0.86rem;
+      transition: all 0.15s;
+    }
+    .tab-btn.active {
+      background: var(--blue);
+      border-color: var(--blue);
+      color: #fff;
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      font-size: 0.82rem;
+    }
+    .pill {
       display: inline-flex;
       align-items: center;
-      justify-content: center;
       gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      font-weight: 600;
     }
-
-    .btn:hover {
-      background: #30363d;
+    .dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
     }
-
-    .btn-primario {
-      background: var(--azul-lis);
-      border-color: #1f6feb;
-      color: #fff;
-    }
-    .btn-primario:hover { background: #1f6feb; }
-
-    .btn-exito {
-      background: var(--verde-ok);
-      border-color: var(--verde-brillante);
-      color: #fff;
-    }
-    .btn-exito:hover { background: #2ea043; }
-
-    .btn-peligro {
-      background: var(--rojo-alerta);
-      border-color: #f85149;
-      color: #fff;
-    }
-
-    .btn-gigante {
-      padding: 16px;
-      font-size: 1.05rem;
+    main {
+      flex: 1;
+      padding: 18px 22px;
+      max-width: 1600px;
       width: 100%;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      margin: 0 auto;
     }
+    .view { display: none; }
+    .view.active { display: block; }
 
-    /* LCD 16x2 Grove Virtual */
-    .lcd-contenedor {
-      background: #000;
-      padding: 12px;
-      border-radius: 10px;
-      border: 3px solid #20242a;
-      box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+    .grid-dashboard {
+      display: grid;
+      grid-template-columns: 1.15fr 1.15fr 1fr;
+      gap: 18px;
     }
-
-    .lcd-display {
-      background: var(--lcd-bg);
-      border-radius: 6px;
-      padding: 14px 18px;
-      font-family: "Courier New", Courier, monospace;
-      font-weight: 700;
-      color: #000;
-      text-shadow: 0 0 2px rgba(255,255,255,0.4);
-      min-height: 80px;
+    @media (max-width: 1180px) {
+      .grid-dashboard { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
+      gap: 14px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 10px;
+    }
+    .card-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .video-box {
+      width: 100%;
+      aspect-ratio: 4 / 3;
+      background: #050811;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      position: relative;
+      display: flex;
+      align-items: center;
       justify-content: center;
-      gap: 6px;
-      transition: background 0.3s ease;
+    }
+    .video-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
     }
 
-    .lcd-linea {
-      font-size: 1.25rem;
-      letter-spacing: 2px;
+    /* Grove 16x2 RGB LCD */
+    .grove-housing {
+      background: #0d1522;
+      border: 2px solid #2b3b55;
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .lcd-screen {
+      background: rgb(0, 180, 120);
+      color: #08120e;
+      font-family: "Courier New", Courier, monospace;
+      font-weight: 800;
+      font-size: 1.35rem;
+      letter-spacing: 3px;
+      padding: 14px 18px;
+      border-radius: 8px;
+      border: 4px solid #1e293b;
+      box-shadow: inset 0 2px 8px rgba(0,0,0,0.45), 0 0 18px rgba(16, 185, 129, 0.35);
+      transition: background-color 0.25s ease, box-shadow 0.25s ease;
+      text-transform: uppercase;
+      line-height: 1.45;
+    }
+    .lcd-line {
       white-space: pre;
       overflow: hidden;
     }
-
-    /* LEDs Indicadores */
-    .panel-leds {
+    .leds-row {
       display: flex;
-      justify-content: space-around;
-      padding: 10px;
-      background: #090d13;
-      border-radius: 8px;
-      border: 1px solid var(--borde);
+      align-items: center;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: var(--muted);
     }
-
-    .led-item {
-      display: flex;
-      flex-direction: column;
+    .dip-leds { display: flex; gap: 14px; align-items: center; }
+    .led-indicator {
+      display: inline-flex;
       align-items: center;
       gap: 6px;
-      font-size: 0.75rem;
-      color: var(--texto-secundario);
     }
-
-    .led-circulo {
-      width: 22px;
-      height: 22px;
+    .led-bulb {
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
-      background: #252830;
-      border: 2px solid #3c4049;
-      transition: all 0.3s ease;
+      background: #1f2937;
+      border: 1px solid #374151;
+    }
+    .led-bulb.on-verde { background: #10b981; box-shadow: 0 0 10px #10b981; }
+    .led-bulb.on-azul { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
+    .led-bulb.on-rojo { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
+
+    .presence-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 460px;
+      overflow-y: auto;
+    }
+    .person-card {
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--green);
+      border-radius: 10px;
+      padding: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .person-info h3 { font-size: 0.96rem; margin-bottom: 3px; }
+    .person-meta { font-size: 0.78rem; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
+    .badge {
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    .badge-green { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16,185,129,0.35); }
+    .badge-blue { background: rgba(59, 130, 246, 0.18); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35); }
+    .badge-amber { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245,158,11,0.35); }
+    .badge-red { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
+
+    .btn {
+      background: var(--blue);
+      color: #fff;
+      border: none;
+      padding: 8px 13px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.82rem;
+      cursor: pointer;
+    }
+    .btn:hover { opacity: 0.92; }
+    .btn-green { background: var(--green); color: #04130d; }
+    .btn-amber { background: var(--amber); color: #181002; }
+    .btn-red { background: var(--red); }
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
     }
 
-    .led-circulo.azul.encendido { background: #388bfd; box-shadow: 0 0 12px #388bfd; }
-    .led-circulo.verde.encendido { background: #3fb950; box-shadow: 0 0 12px #3fb950; }
-    .led-circulo.rojo.encendido { background: #f85149; box-shadow: 0 0 12px #f85149; }
+    .env-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .env-stat {
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    .env-stat span { font-size: 0.75rem; color: var(--muted); display: block; }
+    .env-stat strong { font-size: 1.15rem; }
 
-    /* Tarjetas de Presentes */
-    .lista-presentes {
+    .events-feed {
       display: flex;
       flex-direction: column;
       gap: 8px;
-      max-height: 280px;
+      max-height: 540px;
       overflow-y: auto;
     }
-
-    .item-presente {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 14px;
-      background: #0d1117;
-      border: 1px solid var(--borde);
+    .event-row {
+      background: var(--panel-alt);
+      border: 1px solid var(--border);
       border-radius: 8px;
+      padding: 9px 11px;
+      font-size: 0.8rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
     }
 
-    .presente-info h4 {
-      font-size: 0.95rem;
-      color: #fff;
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
     }
-
-    .presente-info span {
-      font-size: 0.75rem;
-      color: var(--texto-secundario);
+    input, select {
+      background: #0b111e;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 9px 11px;
+      border-radius: 8px;
+      font-size: 0.86rem;
+      width: 100%;
     }
-
-    /* Tablas */
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.85rem;
+      font-size: 0.86rem;
     }
-
     th, td {
-      padding: 8px 12px;
       text-align: left;
-      border-bottom: 1px solid var(--borde);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
     }
-
-    th {
-      color: var(--texto-secundario);
-      font-weight: 600;
-    }
-
-    /* Sliders de Sensores */
-    .sensor-control {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      background: #0d1117;
-      padding: 12px;
-      border-radius: 8px;
-      border: 1px solid var(--borde);
-    }
-
-    .sensor-header {
-      display: flex;
+    th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
+    .enroll-banner {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px solid var(--amber);
+      color: #fde68a;
+      padding: 12px 16px;
+      border-radius: 10px;
+      display: none;
+      align-items: center;
       justify-content: space-between;
-      font-size: 0.85rem;
+      gap: 12px;
+      margin-bottom: 14px;
     }
-
-    input[type=range] {
-      width: 100%;
-      accent-color: var(--azul-claro);
-    }
+    .enroll-banner.show { display: flex; }
   </style>
 </head>
 <body>
-
   <header>
-    <div class="marca">
-      <h1>LIS Control</h1>
-      <div class="badge-estado" id="indicadorServidor">
-        <span class="dot"></span>
-        <span id="textoEstadoServidor">Portero Online (0.0.0.0)</span>
+    <div class="brand">
+      <div class="brand-badge">LIS</div>
+      <div>
+        <h1>Laboratorio de Investigación de Software — UTN FRC</h1>
+        <small>Plataforma Offline-First de Asistencia Biométrica, Inventario y Estado Ambiental</small>
       </div>
     </div>
 
-    <nav class="pestanas">
-      <button class="btn-pestana activa" onclick="cambiarVista('vistaFichador')">📱 Fichador & Cámara</button>
-      <button class="btn-pestana" onclick="cambiarVista('vistaTablero')">📋 Tablero de Pared</button>
-      <button class="btn-pestana" onclick="cambiarVista('vistaPruebas')">🎛️ Simulador Sensores</button>
-    </nav>
+    <div class="nav-tabs">
+      <button class="tab-btn active" onclick="cambiarVista('pared', this)">1. Tablero en Vivo</button>
+      <button class="tab-btn" onclick="cambiarVista('perfiles', this)">2. Perfiles y Biometría</button>
+      <button class="tab-btn" onclick="cambiarVista('inventario', this)">3. Inventario y Avisos</button>
+      <button class="tab-btn" onclick="cambiarVista('puerta', this)">4. Terminal PIN / Respaldo</button>
+    </div>
+
+    <div class="status-bar">
+      <div class="pill"><span class="dot" id="dot-portero"></span> <span id="lbl-portero">Portero Online</span></div>
+      <div class="pill">FPS Cámara: <strong id="lbl-fps">0.0</strong></div>
+      <div class="pill">Eventos: <strong id="lbl-eventos">0</strong></div>
+    </div>
   </header>
 
   <main>
-    <!-- VISTA 1: FICHADOR Y CÁMARA (Para el Celular / Tablet de Puerta) -->
-    <div id="vistaFichador" class="vista activa">
-      <div class="grid-2">
-        <!-- Columna Izquierda: Video en Vivo y Control de Fuente -->
-        <div class="tarjeta">
-          <div class="tarjeta-titulo">
-            <span>Reconocimiento Facial en Vivo</span>
-            <span id="labelFps" style="font-size: 0.75rem; color: var(--amarillo-aviso);">FPS: --</span>
-          </div>
-
-          <div class="contenedor-video">
-            <img id="videoStream" class="video-img" src="/video_feed" alt="Stream de video LIS" onerror="this.alt='Cámara desconectada o iniciando...'">
-          </div>
-
-          <div class="barra-camara">
-            <input type="text" id="inputUrlCamara" class="input-texto" placeholder="URL DroidCam (http://192.168.1.XX:4747/video)">
-            <button class="btn btn-primario" onclick="aplicarFuenteCamara()">Conectar</button>
-            <button class="btn" onclick="seleccionarCamara(0)">Cam 0</button>
-            <button class="btn" onclick="seleccionarCamara('simulada')">Simulada</button>
-          </div>
-        </div>
-
-        <!-- Columna Derecha: LCD Grove Virtual, Touch y Acciones -->
-        <div class="tarjeta">
-          <div class="tarjeta-titulo">
-            <span>Fichador Físico / Virtual Grove</span>
-            <span id="badgeFichadorModo" style="font-size: 0.75rem; color: var(--azul-claro);">Modo Simulado</span>
-          </div>
-
-          <!-- LCD 16x2 -->
-          <div class="lcd-contenedor">
-            <div class="lcd-display" id="lcdDisplay">
-              <div class="lcd-linea" id="lcdL1">LIS Control     </div>
-              <div class="lcd-linea" id="lcdL2">Esperando...    </div>
-            </div>
-          </div>
-
-          <!-- LEDs Indicadores -->
-          <div class="panel-leds">
-            <div class="led-item">
-              <div class="led-circulo azul encendido" id="ledAzul"></div>
-              <span>Sistema</span>
-            </div>
-            <div class="led-item">
-              <div class="led-circulo verde" id="ledVerde"></div>
-              <span>Ingreso OK</span>
-            </div>
-            <div class="led-item">
-              <div class="led-circulo rojo" id="ledRojo"></div>
-              <span>Rechazado</span>
-            </div>
-          </div>
-
-          <!-- Botón de Registro de Perfil (Alta Móvil) -->
-          <button class="btn btn-primario btn-gigante" style="background: linear-gradient(135deg, #1f6feb 0%, #238636 100%); font-size: 1rem; border-color: #388bfd;" onclick="iniciarAltaBiometricaWeb()">
-            👤 REGISTRAR MI PERFIL (ALTA BIOMÉTRICA)
-          </button>
-
-          <!-- Botón de Despertar Cámara (Touch) -->
-          <button class="btn btn-primario btn-gigante" onclick="tocarSensorTouch()">
-            ✋ TOCAR SENSOR TOUCH (Despertar Cámara)
-          </button>
-
-          <!-- Pruebas rápidas de gestos simulados -->
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-            <button class="btn btn-exito" onclick="simularGesto('Open_Palm')">🖐️ Gesto Entrada (Open_Palm)</button>
-            <button class="btn btn-peligro" onclick="simularGesto('Thumb_Up')">👍 Gesto Salida (Thumb_Up)</button>
-          </div>
-
-          <!-- Respaldo PIN / QR -->
-          <div style="border-top: 1px solid var(--borde); padding-top: 10px; display: flex; gap: 8px;">
-            <input type="text" id="inputUsuarioPin" class="input-texto" placeholder="Nombre de Usuario">
-            <input type="password" id="inputPinCodigo" class="input-texto" style="max-width: 100px;" placeholder="PIN">
-            <button class="btn" onclick="ficharPorPin('entrada')">Entrar</button>
-            <button class="btn" onclick="ficharPorPin('salida')">Salir</button>
-          </div>
-        </div>
+    <div id="banner-enrolamiento" class="enroll-banner">
+      <div>
+        <strong id="enroll-titulo">MODO ENROLAMIENTO FACIAL ACTIVO</strong>
+        <div id="enroll-detalle" style="font-size:0.84rem; margin-top:2px;">Mire a la cámara para capturar las 5 muestras...</div>
       </div>
+      <span class="badge badge-amber" id="enroll-progreso">0 / 5</span>
     </div>
 
-    <!-- VISTA 2: TABLERO DE PARED (Presentes, Inventario, Avisos, Historial) -->
-    <div id="vistaTablero" class="vista">
-      <div class="grid-3" style="margin-bottom: 16px;">
-        <!-- Presentes -->
-        <div class="tarjeta">
-          <div class="tarjeta-titulo">
-            <span>Personas Presentes</span>
-            <span id="conteoPresentes" class="badge-estado">0</span>
+    <!-- VISTA 1: TABLERO DE PARED EN VIVO -->
+    <section id="vista-pared" class="view active">
+      <div class="grid-dashboard">
+        <!-- Columna 1: Cámara en vivo + Fichador Arduino Grove -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📷 Pipeline Facial MediaPipe + FaceNet (Vivo)</div>
+            <button class="btn btn-outline" onclick="tocarSensorTouch()">👆 Simular TOUCH</button>
           </div>
-          <div class="lista-presentes" id="contenedorPresentes">
-            <span style="color: var(--texto-secundario); font-size: 0.85rem;">Nadie en el laboratorio.</span>
+          <div class="video-box">
+            <img id="img-camara" src="/video_feed" alt="Stream de cámara en vivo" />
+          </div>
+
+          <div class="grove-housing">
+            <div class="leds-row">
+              <span>FICHADOR ARDUINO UNO — GROVE LCD RGB 16×2</span>
+              <div class="dip-leds">
+                <span class="led-indicator"><span id="led-verde" class="led-bulb"></span>Verde</span>
+                <span class="led-indicator"><span id="led-azul" class="led-bulb"></span>Azul</span>
+                <span class="led-indicator"><span id="led-rojo" class="led-bulb"></span>Rojo</span>
+              </div>
+            </div>
+            <div id="lcd-screen" class="lcd-screen">
+              <div id="lcd-l1" class="lcd-line">LIS UTN-FRC     </div>
+              <div id="lcd-l2" class="lcd-line">SISTEMA ACTIVO  </div>
+            </div>
           </div>
         </div>
 
-        <!-- Inventario ("Quién tiene qué") -->
-        <div class="tarjeta">
-          <div class="tarjeta-titulo">
-            <span>Equipos Retirados</span>
-            <span id="conteoPrestamos" class="badge-estado">0</span>
+        <!-- Columna 2: Quién está en el LIS ahora + Estado del Lab -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🟢 Presentes en el Laboratorio (<span id="cnt-presentes">0</span>)</div>
+            <select id="sel-modo-lab" style="width:auto; padding:5px 10px;" onchange="cambiarModoLab(this.value)">
+              <option value="disponible">🟢 Lab Disponible</option>
+              <option value="reunion">🟡 En Reunión</option>
+              <option value="no_molestar">🔴 No Molestar</option>
+            </select>
           </div>
-          <div id="contenedorPrestamos" style="display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto;">
-            <span style="color: var(--texto-secundario); font-size: 0.85rem;">Todos los equipos en armario.</span>
+
+          <div class="env-grid">
+            <div class="env-stat"><span>Temperatura</span><strong id="val-temp">22.5 °C</strong></div>
+            <div class="env-stat"><span>Iluminación</span><strong id="val-luz">340 lux</strong></div>
+            <div class="env-stat"><span>Nivel Ruido</span><strong id="val-ruido">38 dB</strong></div>
           </div>
-          <div style="display: flex; gap: 6px; margin-top: auto;">
-            <input type="text" id="inputObjetoId" class="input-texto" placeholder="Equipo (ej: Kit-Grove-1)">
-            <input type="text" id="inputObjetoPersona" class="input-texto" placeholder="Persona">
-            <button class="btn btn-primario" onclick="registrarRetiro()">Retirar</button>
+
+          <div id="lista-presentes" class="presence-list"></div>
+
+          <div class="card-header" style="margin-top:6px;">
+            <div class="card-title">📦 Equipos Prestados Ahora</div>
+          </div>
+          <div id="resumen-prestamos" style="display:flex; flex-direction:column; gap:8px;"></div>
+        </div>
+
+        <!-- Columna 3: Event Sourcing Stream -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">⚡ Registro Inmutable de Eventos (Append-Only)</div>
+          </div>
+          <div id="lista-eventos" class="events-feed"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- VISTA 2: GESTIÓN DE PERFILES Y ENROLAMIENTO BIOMÉTRICO -->
+    <section id="vista-perfiles" class="view">
+      <div class="grid-dashboard" style="grid-template-columns: 1fr 1.6fr;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">➕ Alta / Actualización de Perfil (Sección 13)</div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <div>
+              <label style="font-size:0.8rem; color:var(--muted);">Nombre y Apellido</label>
+              <input id="inp-nombre" type="text" placeholder="Ej: Jonás..." />
+            </div>
+            <div class="form-grid">
+              <div>
+                <label style="font-size:0.8rem; color:var(--muted);">Rol en el Lab</label>
+                <select id="inp-rol">
+                  <option value="Integrante">Integrante</option>
+                  <option value="Investigador">Investigador</option>
+                  <option value="Administrador">Administrador</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:0.8rem; color:var(--muted);">PIN de Respaldo (4 dígitos)</label>
+                <input id="inp-pin" type="password" maxlength="6" value="1234" />
+              </div>
+            </div>
+            <label style="display:flex; align-items:center; gap:8px; font-size:0.84rem; cursor:pointer;">
+              <input id="inp-consentimiento" type="checkbox" checked style="width:auto;" />
+              Presta consentimiento informado para almacenar vectores biométricos (nunca fotos).
+            </label>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button class="btn btn-green" onclick="guardarPerfil(true)">📷 Guardar y Capturar Rostro (5 muestras)</button>
+              <button class="btn btn-outline" onclick="guardarPerfil(false)">Guardar Solo Perfil (Usar PIN)</button>
+            </div>
           </div>
         </div>
 
-        <!-- Avisos del Pizarrón -->
-        <div class="tarjeta">
-          <div class="tarjeta-titulo">
-            <span>Tablero de Avisos</span>
-            <span id="conteoAvisos" class="badge-estado">0</span>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">👥 Padrón de Integrantes y Muestras Biométricas en SQLite</div>
           </div>
-          <div id="contenedorAvisos" style="display: flex; flex-direction: column; gap: 6px; max-height: 180px; overflow-y: auto;">
-            <span style="color: var(--texto-secundario); font-size: 0.85rem;">No hay avisos publicados.</span>
-          </div>
-          <div style="display: flex; gap: 6px; margin-top: auto;">
-            <input type="text" id="inputAvisoTitulo" class="input-texto" placeholder="Nuevo aviso...">
-            <button class="btn btn-exito" onclick="crearAviso()">Publicar</button>
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Integrante</th>
+                  <th>Rol / Proyecto</th>
+                  <th>Muestras FaceNet</th>
+                  <th>Estado Hoy</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="tabla-perfiles"></tbody>
+            </table>
           </div>
         </div>
       </div>
+    </section>
 
-      <!-- Historial Append-Only -->
-      <div class="tarjeta">
-        <div class="tarjeta-titulo">
-          <span>Historial de Eventos (Append-Only JSONL)</span>
-          <span style="font-size: 0.75rem; color: var(--texto-secundario);">Últimos sucesos inmutables</span>
-        </div>
-        <div style="overflow-x: auto; max-height: 250px;">
+    <!-- VISTA 3: INVENTARIO Y AVISOS -->
+    <section id="vista-inventario" class="view">
+      <div class="grid-dashboard" style="grid-template-columns: 1.2fr 1fr;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🧰 Inventario del Laboratorio ("¿Quién tiene qué?")</div>
+          </div>
+          <div class="form-grid">
+            <select id="sel-persona-inv"></select>
+            <select id="sel-objeto-inv"></select>
+            <button class="btn btn-amber" onclick="registrarMovimientoInventario('retiro')">Registrar Retiro</button>
+          </div>
           <table>
             <thead>
               <tr>
-                <th>Hora</th>
-                <th>Tipo</th>
-                <th>Persona / Objeto</th>
-                <th>Método</th>
-                <th>Origen</th>
-                <th>Distancia</th>
+                <th>Equipo / Kit</th>
+                <th>Estado</th>
+                <th>Responsable Actual</th>
+                <th>Acción</th>
               </tr>
             </thead>
-            <tbody id="tablaEventosBody">
-              <tr><td colspan="6" style="text-align: center; color: var(--texto-secundario);">Cargando eventos...</td></tr>
-            </tbody>
+            <tbody id="tabla-inventario"></tbody>
           </table>
         </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">📌 Tablero de Avisos del Pizarrón</div>
+          </div>
+          <div class="form-grid">
+            <input id="inp-aviso-autor" type="text" placeholder="Dueño del aviso" />
+            <input id="inp-aviso-venc" type="date" />
+          </div>
+          <div style="display:flex; gap:8px;">
+            <input id="inp-aviso-texto" type="text" placeholder="Escribe un aviso para el laboratorio..." />
+            <button class="btn" onclick="crearAviso()">Publicar</button>
+          </div>
+          <div id="lista-avisos" class="presence-list"></div>
+        </div>
       </div>
-    </div>
+    </section>
 
-    <!-- VISTA 3: SIMULADOR DE PLACAS GROVE Y SENSORES -->
-    <div id="vistaPruebas" class="vista">
-      <div class="grid-2">
-        <!-- Torre de Estado -->
-        <div class="tarjeta">
-          <div class="tarjeta-titulo">
-            <span>Torre de Estado (Arduino UNO + Sensores Grove)</span>
-            <button class="btn btn-primario" onclick="aplicarSensores()">Actualizar</button>
+    <!-- VISTA 4: TERMINAL DE PUERTA / CAJA FUERTE (RESPALDO SIN CAMARA) -->
+    <section id="vista-puerta" class="view">
+      <div class="grid-dashboard" style="grid-template-columns: 1fr 1fr;">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔐 Respaldo Nivel 2 y 3: Fichaje por PIN / Caja Fuerte Galileo</div>
           </div>
-
-          <div class="sensor-control">
-            <div class="sensor-header">
-              <span>Sensor de Luz (Grove Light Sensor)</span>
-              <span id="valLux">350 lux</span>
-            </div>
-            <input type="range" id="sliderLux" min="0" max="1000" value="350" oninput="document.getElementById('valLux').innerText = this.value + ' lux'">
-          </div>
-
-          <div class="sensor-control">
-            <div class="sensor-header">
-              <span>Sensor de Temperatura (Grove Temp)</span>
-              <span id="valTemp">22.5 °C</span>
-            </div>
-            <input type="range" id="sliderTemp" min="10" max="45" step="0.5" value="22.5" oninput="document.getElementById('valTemp').innerText = this.value + ' °C'">
-          </div>
-
-          <div class="sensor-control">
-            <div class="sensor-header">
-              <span>Sensor de Sonido (Grove Sound Sensor)</span>
-              <span id="valRuido">42 dB</span>
-            </div>
-            <input type="range" id="sliderRuido" min="20" max="100" value="42" oninput="document.getElementById('valRuido').innerText = this.value + ' dB'">
-          </div>
-
-          <div style="display: flex; gap: 8px; align-items: center;">
-            <label style="font-size: 0.85rem;">Modo Laboratorio:</label>
-            <select id="selectModoLab" class="input-texto" onchange="aplicarSensores()">
-              <option value="disponible">🟢 Disponible (Verde)</option>
-              <option value="reunion">🔵 En Reunión (Azul)</option>
-              <option value="no_molestar">🔴 No Molestar (Rojo)</option>
+          <p style="font-size:0.85rem; color:var(--muted);">
+            Permite registrar entrada o salida cuando el servidor de visión está apagado o si la persona prefiere no utilizar reconocimiento facial (Sección 7 y 13).
+          </p>
+          <div class="form-grid">
+            <select id="sel-persona-pin"></select>
+            <input id="inp-auth-pin" type="password" placeholder="Ingrese su PIN" />
+            <select id="sel-origen-pin">
+              <option value="tablet-puerta">Origen: Tablet de Puerta (PIN)</option>
+              <option value="caja-fuerte">Origen: Caja Fuerte Galileo (Rotary)</option>
             </select>
           </div>
+          <div style="display:flex; gap:12px;">
+            <button class="btn btn-green" style="flex:1; padding:12px;" onclick="ficharConPin('entrada')">🟢 REGISTRAR ENTRADA</button>
+            <button class="btn btn-blue" style="flex:1; padding:12px;" onclick="ficharConPin('salida')">🔵 REGISTRAR SALIDA</button>
+          </div>
+          <div id="msg-pin-res" style="font-size:0.86rem; font-weight:600;"></div>
         </div>
 
-        <!-- Respaldo: Caja Fuerte Galileo y Control de Servidor -->
-        <div class="tarjeta">
-          <div class="tarjeta-titulo">
-            <span>Caja Fuerte Galileo (Respaldo sin Servidor)</span>
-            <span style="font-size: 0.75rem; color: var(--amarillo-aviso);">Offline-First</span>
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🌡️ Simulador de Torre de Estado (Sensores Físicos)</div>
           </div>
-
-          <p style="font-size: 0.85rem; color: var(--texto-secundario);">
-            Simula la apertura de emergencia mediante perilla rotatoria y pulsador físico cuando el servidor central y el pipeline de cámaras están apagados.
-          </p>
-
-          <div style="display: flex; gap: 8px;">
-            <input type="password" id="inputPinCajaFuerte" class="input-texto" placeholder="PIN Emergencia (ej: 1234)">
-            <button class="btn btn-exito" onclick="enviarPinCajaFuerte()">Ingresar PIN</button>
-          </div>
-
-          <div style="border-top: 1px solid var(--borde); padding-top: 14px; margin-top: auto;">
-            <div class="tarjeta-titulo" style="margin-bottom: 8px;">
-              <span>Simulación de Servidor Central</span>
+          <div class="form-grid">
+            <div>
+              <label style="font-size:0.8rem; color:var(--muted);">Temperatura (°C)</label>
+              <input id="sim-temp" type="number" step="0.5" value="23.0" />
             </div>
-            <button class="btn btn-peligro" id="btnToggleServidor" style="width: 100%;" onclick="toggleServidor()">
-              🔴 Simular Servidor Maestro Apagado (Pull Pausado)
-            </button>
+            <div>
+              <label style="font-size:0.8rem; color:var(--muted);">Luz Ambiente (lux)</label>
+              <input id="sim-luz" type="number" step="10" value="350" />
+            </div>
+            <div>
+              <label style="font-size:0.8rem; color:var(--muted);">Nivel Sonido (dB)</label>
+              <input id="sim-sonido" type="number" step="1" value="40" />
+            </div>
           </div>
+          <button class="btn btn-outline" onclick="publicarAmbiente()">Emitir Evento de Sensores al Portero</button>
         </div>
       </div>
-    </div>
+    </section>
   </main>
 
   <script>
-    let servidorPausado = false;
-    let audioCtx = null;
+    let ultimoBeepTs = "";
+    let estadoGlobal = null;
 
-    // Inicializar Web Audio API para simular el buzzer Grove
-    function reproducirBuzzer(tipo) {
+    function cambiarVista(nombre, btn) {
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('vista-' + nombre).classList.add('active');
+      if (btn) btn.classList.add('active');
+    }
+
+    function emitirSonidoBeep(tipo) {
       try {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
         osc.connect(gain);
-        gain.connect(audioCtx.destination);
-
-        const ahora = audioCtx.currentTime;
-        if (tipo === 'ok') {
-          osc.frequency.setValueAtTime(880, ahora);
-          osc.frequency.setValueAtTime(1200, ahora + 0.08);
-          gain.gain.setValueAtTime(0.2, ahora);
-          gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.22);
-          osc.start(ahora);
-          osc.stop(ahora + 0.22);
-        } else if (tipo === 'err') {
-          osc.frequency.setValueAtTime(250, ahora);
-          gain.gain.setValueAtTime(0.3, ahora);
-          gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.35);
-          osc.start(ahora);
-          osc.stop(ahora + 0.35);
-        } else {
-          osc.frequency.setValueAtTime(600, ahora);
-          gain.gain.setValueAtTime(0.2, ahora);
-          gain.gain.exponentialRampToValueAtTime(0.01, ahora + 0.15);
-          osc.start(ahora);
-          osc.stop(ahora + 0.15);
-        }
-      } catch (e) {
-        console.warn("Audio no inicializado aún:", e);
-      }
-    }
-
-    // Navegación por pestañas
-    function cambiarVista(idVista) {
-      document.querySelectorAll('.vista').forEach(v => v.classList.remove('activa'));
-      document.querySelectorAll('.btn-pestana').forEach(b => b.classList.remove('activa'));
-
-      const vistaEl = document.getElementById(idVista);
-      if (vistaEl) vistaEl.classList.add('activa');
-
-      const btn = Array.from(document.querySelectorAll('.btn-pestana')).find(b => b.getAttribute('onclick').includes(idVista));
-      if (btn) btn.classList.add('activa');
-    }
-
-    // Configurar fuente de cámara
-    async function aplicarFuenteCamara() {
-      let url = document.getElementById('inputUrlCamara').value.trim();
-      if (!url) return;
-      if (url.includes(':') || url.includes('.')) {
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-          url = 'http://' + url;
-        }
-        if (url.includes(':4747') && !url.endsWith('/video') && !url.endsWith('/mjpegfeed')) {
-          url = url.replace(/\/+$/, '') + '/video';
-        }
-      }
-      document.getElementById('inputUrlCamara').value = url;
-      await cambiarFuente(url);
-    }
-
-    async function seleccionarCamara(fuente) {
-      await cambiarFuente(fuente);
-    }
-
-    async function cambiarFuente(fuente) {
-      try {
-        const resp = await fetch('/camara/configurar', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fuente: fuente })
-        });
-        const res = await resp.json();
-        if (res.ok) {
-          const streamImg = document.getElementById('videoStream');
-          if (streamImg) {
-            streamImg.src = '/video_feed?t=' + Date.now();
-          }
-        }
-      } catch (e) {
-        console.warn('Fallo temporal al cambiar fuente de cámara:', e);
-      }
-    }
-
-    // Alta biométrica desde el Tablero Web (celular / tablet / PC)
-    async function iniciarAltaBiometricaWeb() {
-      const pin = prompt("Introduce el PIN de Administrador (por defecto: 1234):");
-      if (!pin) return;
-      if (pin.trim() !== "1234") {
-        alert("PIN de Administrador incorrecto.");
-        return;
-      }
-      const nombre = prompt("Introduce tu nombre completo:");
-      if (!nombre || !nombre.trim()) return;
-
-      const consentimiento = confirm(
-        "CONSENTIMIENTO INFORMADO (LIS - UTN FRC)\n\n" +
-        "Persona: " + nombre.trim() + "\n\n" +
-        "• Se capturarán 5 muestras de vectores biométricos (FaceNet).\n" +
-        "• Los datos residen exclusivamente en la base de datos local SQLite del laboratorio.\n" +
-        "• Por privacidad y diseño (Sección 13), NUNCA se guardan fotos ni recortes en disco.\n\n" +
-        "¿Aceptas el consentimiento informado para continuar?"
-      );
-      if (!consentimiento) return;
-
-      reproducirBuzzer('ok');
-      await enviarAccion('iniciar_alta', { nombre: nombre.trim() });
-      alert("¡Alta iniciada para " + nombre.trim() + "! Mirá hacia la cámara mientras el sistema toma las 5 muestras biométricas.");
-    }
-
-    // Sensor Touch y acciones físicas
-    async function tocarSensorTouch() {
-      reproducirBuzzer('warn');
-      await enviarAccion('touch');
-    }
-
-    async function simularGesto(gesto) {
-      await enviarAccion('gesto', { gesto: gesto });
-    }
-
-    async function enviarAccion(accion, datos = {}) {
-      try {
-        await fetch('/hardware/accion', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accion: accion, datos: datos })
-        });
-      } catch (e) {
-        console.error('Error enviando acción:', e);
-      }
-    }
-
-    // Fichar por PIN
-    async function ficharPorPin(tipo) {
-      const usuario = document.getElementById('inputUsuarioPin').value.trim();
-      const pin = document.getElementById('inputPinCodigo').value.trim();
-      if (!usuario || !pin) {
-        alert('Ingrese usuario y PIN');
-        return;
-      }
-      const evento = {
-        tipo: tipo,
-        persona_id: usuario.toLowerCase().replace(/\\s+/g, '_'),
-        metodo: 'pin',
-        origen: 'tablet-puerta',
-        meta: { nombre: usuario, pin: pin }
-      };
-      await registrarEvento(evento);
-      document.getElementById('inputPinCodigo').value = '';
-    }
-
-    // Registrar retiro/devolución
-    async function registrarRetiro() {
-      const obj = document.getElementById('inputObjetoId').value.trim();
-      const per = document.getElementById('inputObjetoPersona').value.trim();
-      if (!obj || !per) return;
-      const ev = {
-        tipo: 'retiro',
-        objeto_id: obj,
-        persona_id: per.toLowerCase().replace(/\\s+/g, '_'),
-        origen: 'armario',
-        metodo: 'manual',
-        meta: { descripcion: obj, nombre_persona: per }
-      };
-      await registrarEvento(ev);
-      document.getElementById('inputObjetoId').value = '';
-    }
-
-    async function devolverObjeto(objetoId) {
-      const ev = {
-        tipo: 'devolucion',
-        objeto_id: objetoId,
-        origen: 'armario',
-        metodo: 'manual'
-      };
-      await registrarEvento(ev);
-    }
-
-    // Avisos
-    async function crearAviso() {
-      const tit = document.getElementById('inputAvisoTitulo').value.trim();
-      if (!tit) return;
-      const ev = {
-        tipo: 'aviso_creado',
-        objeto_id: 'aviso_' + Date.now().toString(36),
-        origen: 'web-admin',
-        metodo: 'manual',
-        meta: { titulo: tit, dueño: 'Admin' }
-      };
-      await registrarEvento(ev);
-      document.getElementById('inputAvisoTitulo').value = '';
-    }
-
-    async function cerrarAviso(avisoId) {
-      const ev = {
-        tipo: 'aviso_cerrado',
-        objeto_id: avisoId,
-        origen: 'web-admin',
-        metodo: 'manual'
-      };
-      await registrarEvento(ev);
-    }
-
-    // Sensores Torre
-    async function aplicarSensores() {
-      const lux = parseInt(document.getElementById('sliderLux').value);
-      const temp = parseFloat(document.getElementById('sliderTemp').value);
-      const ruido = parseInt(document.getElementById('sliderRuido').value);
-      const modo = document.getElementById('selectModoLab').value;
-
-      await registrarEvento({
-        tipo: 'ambiente',
-        origen: 'torre-estado',
-        metodo: 'sensor',
-        meta: { lux: lux, temperatura: temp, ruido: ruido }
-      });
-
-      await registrarEvento({
-        tipo: 'estado_lab',
-        origen: 'torre-estado',
-        metodo: 'sensor',
-        meta: { modo: modo }
-      });
-      alert('Valores de la Torre de Estado actualizados');
-    }
-
-    // Caja Fuerte PIN
-    async function enviarPinCajaFuerte() {
-      const pin = document.getElementById('inputPinCajaFuerte').value.trim();
-      if (!pin) return;
-      await registrarEvento({
-        tipo: 'entrada',
-        persona_id: 'usuario_emergencia',
-        origen: 'caja-fuerte',
-        metodo: 'pin',
-        meta: { pin_usado: pin }
-      });
-      reproducirBuzzer('ok');
-      alert('Ingreso por Caja Fuerte registrado');
-      document.getElementById('inputPinCajaFuerte').value = '';
-    }
-
-    async function toggleServidor() {
-      servidorPausado = !servidorPausado;
-      const btn = document.getElementById('btnToggleServidor');
-      if (servidorPausado) {
-        btn.innerText = '🟢 Reanudar Servidor Maestro (Pull Activo)';
-        btn.className = 'btn btn-exito';
-      } else {
-        btn.innerText = '🔴 Simular Servidor Maestro Apagado (Pull Pausado)';
-        btn.className = 'btn btn-peligro';
-      }
-      await enviarAccion('toggle_servidor', { pausado: servidorPausado });
-    }
-
-    async function registrarEvento(ev) {
-      try {
-        await fetch('/events', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(ev)
-        });
-        actualizarEstado();
-      } catch (e) {
-        console.error('Error registrando evento:', e);
-      }
-    }
-
-    // Polling de Estado Derivado y Fichador
-    let ultimoBeepTiempoRegistrado = 0;
-
-    async function actualizarEstado() {
-      try {
-        const resp = await fetch('/state');
-        if (!resp.ok) return;
-        const data = await resp.json();
-
-        // 1. LCD 16x2 y LEDs
-        if (data.fichador) {
-          const f = data.fichador;
-          document.getElementById('lcdL1').innerText = (f.linea1 || '').padEnd(16, ' ');
-          document.getElementById('lcdL2').innerText = (f.linea2 || '').padEnd(16, ' ');
-
-          if (f.rgb && f.rgb.length === 3) {
-            document.documentElement.style.setProperty('--lcd-bg', `rgb(${f.rgb[0]}, ${f.rgb[1]}, ${f.rgb[2]})`);
-          }
-
-          if (f.leds) {
-            toggleLed('ledAzul', f.leds.azul);
-            toggleLed('ledVerde', f.leds.verde);
-            toggleLed('ledRojo', f.leds.rojo);
-          }
-
-          // Sonido de buzzer si ocurrió uno nuevo
-          if (f.ultimo_beep && f.ultimo_beep_tiempo > ultimoBeepTiempoRegistrado) {
-            ultimoBeepTiempoRegistrado = f.ultimo_beep_tiempo;
-            reproducirBuzzer(f.ultimo_beep);
-          }
-        }
-
-        // 2. Presentes
-        const presentesDiv = document.getElementById('contenedorPresentes');
-        const listaP = Object.values(data.presentes || {});
-        document.getElementById('conteoPresentes').innerText = listaP.length;
-
-        if (listaP.length === 0) {
-          presentesDiv.innerHTML = '<span style="color: var(--texto-secundario); font-size: 0.85rem;">Nadie en el laboratorio.</span>';
-        } else {
-          presentesDiv.innerHTML = listaP.map(p => `
-            <div class="item-presente">
-              <div class="presente-info">
-                <h4>${p.nombre || p.persona_id}</h4>
-                <span>Desde: ${p.hora_ingreso ? p.hora_ingreso.substring(11, 16) : '--:--'} (${p.metodo || 'cara'})</span>
-              </div>
-              <div style="font-size: 0.75rem; text-align: right; color: var(--verde-brillante);">
-                ${p.distancia ? 'd: ' + p.distancia.toFixed(2) : 'OK'}
-              </div>
-            </div>
-          `).join('');
-        }
-
-        // 3. Préstamos
-        const prestamosDiv = document.getElementById('contenedorPrestamos');
-        const listaPr = Object.values(data.prestamos || {});
-        document.getElementById('conteoPrestamos').innerText = listaPr.length;
-
-        if (listaPr.length === 0) {
-          prestamosDiv.innerHTML = '<span style="color: var(--texto-secundario); font-size: 0.85rem;">Todos los equipos en armario.</span>';
-        } else {
-          prestamosDiv.innerHTML = listaPr.map(pr => `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:#0d1117; padding:8px; border-radius:6px;">
-              <div>
-                <strong>${pr.objeto_id}</strong>
-                <span style="font-size:0.75rem; color:var(--texto-secundario); display:block;">Retirado por: ${pr.nombre_persona || pr.persona_id}</span>
-              </div>
-              <button class="btn" style="padding:4px 8px; font-size:0.75rem;" onclick="devolverObjeto('${pr.objeto_id}')">Devolver</button>
-            </div>
-          `).join('');
-        }
-
-        // 4. Avisos
-        const avisosDiv = document.getElementById('contenedorAvisos');
-        const listaAv = Object.values(data.avisos || {});
-        document.getElementById('conteoAvisos').innerText = listaAv.length;
-
-        if (listaAv.length === 0) {
-          avisosDiv.innerHTML = '<span style="color: var(--texto-secundario); font-size: 0.85rem;">No hay avisos publicados.</span>';
-        } else {
-          avisosDiv.innerHTML = listaAv.map(av => `
-            <div style="display:flex; justify-content:space-between; align-items:center; background:#0d1117; padding:8px; border-radius:6px;">
-              <div>
-                <strong>${av.titulo}</strong>
-                <span style="font-size:0.75rem; color:var(--texto-secundario); display:block;">Por: ${av.dueño}</span>
-              </div>
-              <button class="btn" style="padding:4px 8px; font-size:0.75rem;" onclick="cerrarAviso('${av.id}')">✕</button>
-            </div>
-          `).join('');
-        }
-
-      } catch (e) {
-        // Red caída temporal
-      }
-    }
-
-    function toggleLed(id, estado) {
-      const el = document.getElementById(id);
-      if (el) {
-        if (estado) el.classList.add('encendido');
-        else el.classList.remove('encendido');
-      }
-    }
-
-    // Polling de Eventos para la tabla
-    async function actualizarEventosTabla() {
-      try {
-        const resp = await fetch('/events?since=0');
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const evs = (data.events || []).slice(-20).reverse();
-
-        const tbody = document.getElementById('tablaEventosBody');
-        if (evs.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--texto-secundario);">No hay eventos aún.</td></tr>';
-        } else {
-          tbody.innerHTML = evs.map(e => `
-            <tr>
-              <td>${e.t ? e.t.substring(11, 19) : ''}</td>
-              <td><span style="font-weight:600; color:${e.tipo === 'entrada' ? 'var(--verde-brillante)' : e.tipo === 'salida' ? 'var(--amarillo-aviso)' : 'var(--azul-claro)'};">${e.tipo}</span></td>
-              <td>${e.persona_id || e.objeto_id || '-'}</td>
-              <td>${e.metodo || '-'}</td>
-              <td>${e.origen || '-'}</td>
-              <td>${e.distancia !== null && e.distancia !== undefined ? e.distancia : '-'}</td>
-            </tr>
-          `).join('');
-        }
+        gain.connect(ctx.destination);
+        osc.frequency.value = tipo === 'err' ? 240 : 880;
+        gain.gain.value = 0.08;
+        osc.start();
+        setTimeout(() => { osc.stop(); ctx.close(); }, tipo === 'err' ? 280 : 130);
       } catch (e) {}
     }
 
-    // Iniciar polling
+    async function apiPost(ruta, body) {
+      const r = await fetch(ruta, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body || {})
+      });
+      return await r.json();
+    }
+
+    async function tocarSensorTouch() {
+      await apiPost('/hardware/touch', {});
+      actualizarEstado();
+    }
+
+    async function cambiarModoLab(modo) {
+      await apiPost('/events', {
+        tipo: 'estado_lab',
+        origen: 'torre-estado',
+        metodo: 'sensor',
+        meta: { modo, abierto: true }
+      });
+      actualizarEstado();
+    }
+
+    async function publicarAmbiente() {
+      const temperatura = parseFloat(document.getElementById('sim-temp').value) || 22;
+      const luz = parseInt(document.getElementById('sim-luz').value) || 300;
+      const sonido = parseInt(document.getElementById('sim-sonido').value) || 40;
+      await apiPost('/events', {
+        tipo: 'ambiente',
+        origen: 'torre-estado',
+        metodo: 'sensor',
+        meta: { temperatura, luz, sonido }
+      });
+      actualizarEstado();
+    }
+
+    async function guardarPerfil(enrolarEnCamara) {
+      const nombre = document.getElementById('inp-nombre').value.trim();
+      const rol = document.getElementById('inp-rol').value;
+      const pin = document.getElementById('inp-pin').value.trim() || '1234';
+      const consentimiento = document.getElementById('inp-consentimiento').checked;
+      if (!nombre) { alert('Ingrese el nombre del integrante.'); return; }
+      const res = await apiPost('/perfiles', {
+        nombre, rol, pin, consentimiento, enrolar_en_camara: enrolarEnCamara
+      });
+      if (!res.ok) { alert(res.error || 'Error al guardar perfil'); return; }
+      document.getElementById('inp-nombre').value = '';
+      if (enrolarEnCamara) {
+        cambiarVista('pared', document.querySelectorAll('.tab-btn')[0]);
+      }
+      actualizarEstado();
+    }
+
+    async function dispararEnrolamiento(nombre) {
+      await apiPost('/perfiles/enrolar', { nombre });
+      cambiarVista('pared', document.querySelectorAll('.tab-btn')[0]);
+      actualizarEstado();
+    }
+
+    async function eliminarPerfil(nombre) {
+      if (!confirm(`¿Seguro que desea dar de baja a ${nombre} y borrar sus vectores biométricos?`)) return;
+      await apiPost('/perfiles/eliminar', { nombre });
+      actualizarEstado();
+    }
+
+    async function registrarAccesoManual(nombre, tipo) {
+      await apiPost('/events', {
+        tipo,
+        origen: 'tablet-puerta',
+        metodo: 'manual',
+        persona_id: nombre,
+        meta: { nombre, proyecto: 'LIS' }
+      });
+      actualizarEstado();
+    }
+
+    async function ficharConPin(tipo) {
+      const persona_id = document.getElementById('sel-persona-pin').value;
+      const pin = document.getElementById('inp-auth-pin').value;
+      const origen = document.getElementById('sel-origen-pin').value;
+      const box = document.getElementById('msg-pin-res');
+      const res = await apiPost('/auth/pin', { persona_id, pin, tipo, origen, metodo: 'pin' });
+      if (res.ok) {
+        box.style.color = '#34d399';
+        box.textContent = `✔ ${tipo.toUpperCase()} registrada correctamente para ${res.perfil.nombre}`;
+        document.getElementById('inp-auth-pin').value = '';
+      } else {
+        box.style.color = '#f87171';
+        box.textContent = `✖ ${res.error}`;
+      }
+      actualizarEstado();
+    }
+
+    async function registrarMovimientoInventario(tipo, objetoIdForzado) {
+      const persona_id = document.getElementById('sel-persona-inv').value;
+      const objeto_id = objetoIdForzado || document.getElementById('sel-objeto-inv').value;
+      const cat = (estadoGlobal?.catalogo_inventario || []).find(o => o.id === objeto_id);
+      await apiPost('/events', {
+        tipo,
+        origen: 'armario',
+        metodo: 'manual',
+        persona_id,
+        objeto_id,
+        meta: { nombre_objeto: cat ? cat.nombre : objeto_id }
+      });
+      actualizarEstado();
+    }
+
+    async function crearAviso() {
+      const autor = document.getElementById('inp-aviso-autor').value.trim() || 'LIS';
+      const texto = document.getElementById('inp-aviso-texto').value.trim();
+      const vencimiento = document.getElementById('inp-aviso-venc').value;
+      if (!texto) return;
+      await apiPost('/events', {
+        tipo: 'aviso_creado',
+        origen: 'tablet-puerta',
+        metodo: 'manual',
+        persona_id: autor,
+        meta: { texto, vencimiento }
+      });
+      document.getElementById('inp-aviso-texto').value = '';
+      actualizarEstado();
+    }
+
+    async function cerrarAviso(id) {
+      await apiPost('/events', {
+        tipo: 'aviso_cerrado',
+        origen: 'tablet-puerta',
+        metodo: 'manual',
+        objeto_id: id,
+        meta: { aviso_id: id }
+      });
+      actualizarEstado();
+    }
+
+    async function actualizarEstado() {
+      try {
+        const r = await fetch('/state');
+        const st = await r.json();
+        estadoGlobal = st;
+
+        document.getElementById('lbl-eventos').textContent = st.total_eventos_validos || 0;
+        document.getElementById('lbl-fps').textContent = (st.camara_runtime?.fps || 0).toFixed(1);
+
+        // Banner de enrolamiento
+        const enr = st.enrolamiento || {};
+        const banner = document.getElementById('banner-enrolamiento');
+        if (enr.activo) {
+          banner.classList.add('show');
+          document.getElementById('enroll-detalle').textContent = enr.mensaje || '';
+          document.getElementById('enroll-progreso').textContent = `${enr.muestras_capturadas || 0} / ${enr.muestras_totales || 5}`;
+        } else {
+          banner.classList.remove('show');
+        }
+
+        // Grove LCD
+        const lcd = st.fichador || {};
+        if (lcd.linea1 !== undefined) {
+          document.getElementById('lcd-l1').textContent = (lcd.linea1 || '').padEnd(16, ' ').slice(0, 16);
+          document.getElementById('lcd-l2').textContent = (lcd.linea2 || '').padEnd(16, ' ').slice(0, 16);
+        }
+        if (Array.isArray(lcd.rgb)) {
+          const [cr, cg, cb] = lcd.rgb;
+          const scr = document.getElementById('lcd-screen');
+          scr.style.backgroundColor = `rgb(${cr}, ${cg}, ${cb})`;
+          scr.style.boxShadow = `inset 0 2px 8px rgba(0,0,0,0.45), 0 0 20px rgba(${cr},${cg},${cb},0.45)`;
+        }
+        const leds = lcd.leds || {};
+        document.getElementById('led-verde').className = 'led-bulb ' + (leds.verde ? 'on-verde' : '');
+        document.getElementById('led-azul').className = 'led-bulb ' + (leds.azul ? 'on-azul' : '');
+        document.getElementById('led-rojo').className = 'led-bulb ' + (leds.rojo ? 'on-rojo' : '');
+
+        if (lcd.ultimo_beep?.t && lcd.ultimo_beep.t !== ultimoBeepTs) {
+          if (ultimoBeepTs !== "") emitirSonidoBeep(lcd.ultimo_beep.tipo);
+          ultimoBeepTs = lcd.ultimo_beep.t;
+        }
+
+        // Ambiente
+        const amb = st.ambiente || {};
+        document.getElementById('val-temp').textContent = `${amb.temperatura ?? 22.5} °C`;
+        document.getElementById('val-luz').textContent = `${amb.luz ?? 340} lux`;
+        document.getElementById('val-ruido').textContent = `${amb.sonido ?? 38} dB`;
+
+        // Presentes
+        const presentesArr = Object.values(st.presentes || {});
+        document.getElementById('cnt-presentes').textContent = presentesArr.length;
+        const contPres = document.getElementById('lista-presentes');
+        if (presentesArr.length === 0) {
+          contPres.innerHTML = `<div style="color:var(--muted); font-size:0.85rem; padding:12px;">No hay integrantes registrados dentro del laboratorio en este momento.</div>`;
+        } else {
+          contPres.innerHTML = presentesArr.map(p => `
+            <div class="person-card">
+              <div class="person-info">
+                <h3>${p.nombre} <span class="badge badge-green">DENTRO</span></h3>
+                <div class="person-meta">
+                  <span>Método: <strong>${p.metodo}</strong></span>
+                  ${p.distancia !== null && p.distancia !== undefined ? `<span>d = <strong>${Number(p.distancia).toFixed(2)}</strong></span>` : ''}
+                  <span>Hoy: <strong>${p.minutos_hoy} min</strong> (${p.ingresos_hoy} ing.)</span>
+                </div>
+              </div>
+              <button class="btn btn-outline" onclick="registrarAccesoManual('${p.nombre}', 'salida')">Registrar Salida</button>
+            </div>
+          `).join('');
+        }
+
+        // Préstamos activos en resumen
+        const prestamosObj = st.prestamos || {};
+        const prestamosArr = Object.values(prestamosObj);
+        const contPrest = document.getElementById('resumen-prestamos');
+        if (prestamosArr.length === 0) {
+          contPrest.innerHTML = `<div style="color:var(--muted); font-size:0.82rem;">Todos los kits y placas se encuentran en el armario.</div>`;
+        } else {
+          contPrest.innerHTML = prestamosArr.map(pr => `
+            <div class="event-row">
+              <div><strong>${pr.nombre_objeto}</strong> → en poder de <span class="badge badge-amber">${pr.persona_id}</span></div>
+              <button class="btn btn-outline" style="padding:4px 9px;" onclick="registrarMovimientoInventario('devolucion', '${pr.objeto_id}')">Devolver</button>
+            </div>
+          `).join('');
+        }
+
+        // Flujo de eventos
+        const evs = st.ultimos_eventos || [];
+        document.getElementById('lista-eventos').innerHTML = evs.map(e => {
+          const badgeClass = e.tipo === 'entrada' ? 'badge-green' : (e.tipo === 'salida' ? 'badge-blue' : 'badge-amber');
+          const hora = (e.t || '').slice(11, 19);
+          const distTxt = e.distancia !== null && e.distancia !== undefined ? ` · d=${Number(e.distancia).toFixed(2)}` : '';
+          return `
+            <div class="event-row">
+              <div>
+                <span class="badge ${badgeClass}">${e.tipo}</span>
+                <strong style="margin-left:6px;">${e.persona_id || e.objeto_id || 'LAB'}</strong>
+                <div style="color:var(--muted); font-size:0.74rem; margin-top:2px;">
+                  ${e.origen} · ${e.metodo}${distTxt}
+                </div>
+              </div>
+              <span style="font-family:monospace; color:var(--muted);">${hora}</span>
+            </div>
+          `;
+        }).join('');
+
+        // Tabla de Perfiles
+        const perfiles = st.perfiles || [];
+        const actMap = st.personas_actividad || {};
+        document.getElementById('tabla-perfiles').innerHTML = perfiles.map(pf => {
+          const act = actMap[pf.nombre] || {};
+          const dentro = !!act.dentro;
+          return `
+            <tr>
+              <td><strong>${pf.nombre}</strong></td>
+              <td>${pf.rol} (${pf.proyecto})</td>
+              <td>
+                <span class="badge ${pf.cantidad_embeddings >= 3 ? 'badge-green' : 'badge-amber'}">
+                  ${pf.cantidad_embeddings} muestras
+                </span>
+              </td>
+              <td>
+                <span class="badge ${dentro ? 'badge-green' : 'badge-blue'}">${dentro ? 'DENTRO' : 'FUERA'}</span>
+                <small style="color:var(--muted); margin-left:6px;">${act.minutos_hoy || 0} min hoy</small>
+              </td>
+              <td style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-amber" style="padding:5px 9px;" onclick="dispararEnrolamiento('${pf.nombre}')">📷 Capturar 5 muestras</button>
+                <button class="btn btn-outline" style="padding:5px 9px;" onclick="registrarAccesoManual('${pf.nombre}', '${dentro ? 'salida' : 'entrada'}')">
+                  ${dentro ? 'Marcar Salida' : 'Marcar Entrada'}
+                </button>
+                <button class="btn btn-red" style="padding:5px 9px;" onclick="eliminarPerfil('${pf.nombre}')">Baja</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        // Actualizar selectores si cambió la cantidad de opciones
+        const selPin = document.getElementById('sel-persona-pin');
+        const selInvP = document.getElementById('sel-persona-inv');
+        if (selPin.options.length !== perfiles.length) {
+          const opts = perfiles.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
+          selPin.innerHTML = opts;
+          selInvP.innerHTML = opts;
+        }
+
+        const catalogo = st.catalogo_inventario || [];
+        const selObj = document.getElementById('sel-objeto-inv');
+        if (selObj.options.length !== catalogo.length) {
+          selObj.innerHTML = catalogo.map(o => `<option value="${o.id}">${o.nombre}</option>`).join('');
+        }
+
+        document.getElementById('tabla-inventario').innerHTML = catalogo.map(item => {
+          const prest = prestamosObj[item.id];
+          return `
+            <tr>
+              <td><strong>${item.nombre}</strong> <small style="color:var(--muted);">(${item.categoria})</small></td>
+              <td><span class="badge ${prest ? 'badge-amber' : 'badge-green'}">${prest ? 'PRESTADO' : 'DISPONIBLE'}</span></td>
+              <td>${prest ? `<strong>${prest.persona_id}</strong>` : 'En armario LIS'}</td>
+              <td>
+                ${prest
+                  ? `<button class="btn btn-green" style="padding:5px 10px;" onclick="registrarMovimientoInventario('devolucion', '${item.id}')">Registrar Devolución</button>`
+                  : `<button class="btn btn-outline" style="padding:5px 10px;" onclick="registrarMovimientoInventario('retiro', '${item.id}')">Prestar</button>`
+                }
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        // Avisos
+        const avisos = st.avisos || [];
+        document.getElementById('lista-avisos').innerHTML = avisos.map(av => `
+          <div class="person-card" style="border-left-color:var(--amber);">
+            <div class="person-info">
+              <h3>${av.texto}</h3>
+              <div class="person-meta">
+                <span>Por: <strong>${av.autor}</strong></span>
+                ${av.vencimiento ? `<span>Vence: ${av.vencimiento}</span>` : ''}
+              </div>
+            </div>
+            <button class="btn btn-outline" onclick="cerrarAviso('${av.id}')">Cerrar</button>
+          </div>
+        `).join('');
+
+      } catch (e) {
+        document.getElementById('lbl-portero').textContent = 'Reconectando...';
+      }
+    }
+
     setInterval(actualizarEstado, 1000);
-    setInterval(actualizarEventosTabla, 2500);
     actualizarEstado();
-    actualizarEventosTabla();
   </script>
 </body>
 </html>

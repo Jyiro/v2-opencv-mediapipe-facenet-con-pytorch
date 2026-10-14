@@ -1,35 +1,37 @@
-# Configuración para el sistema de reconocimiento facial y asistencia LIS
+# Configuración maestra — Plataforma de herramientas internas del LIS (UTN FRC)
 
 [camara]
-# Puede ser un entero (0, 1) o un string con URL de DroidCam ("http://IP:4747/video") o "simulada"
 indice = 0
-url_stream = "" # Si no está vacío, tiene prioridad sobre 'indice' (ideal para DroidCam por Wi-Fi)
-backend = "auto"
+url_stream = ""
+backend = "auto" # "auto", "dshow" (Windows), "v4l2" (Linux)
 espejo = true
-mostrar_ventana_local = true # Permite apagar cv.imshow si solo se quiere ver desde el celular/tablet web
+mostrar_ventana_local = true
 
 [modelos]
 detector_caras = "blaze_face_short_range.tflite"
 reconocedor_manos = "manos/gesture_recognizer.task"
 landmarks_caras = "face_landmarker.task"
-# Motor de embeddings: "facenet_rapido" (sin MTCNN redundante), "onnx_arcface" (opcional), "facenet_legacy"
 motor_embeddings = "facenet_rapido"
-ruta_modelo_onnx = "modelos_onnx/w600k_mbf.onnx"
 
 [archivos]
 base_datos_sqlite = "datos/lis_maestra.db"
+portero_jsonl = "datos/portero_eventos.jsonl"
+frame_compartido = "datos/ultimo_frame.jpg"
 caras_csv = "caras/caras.csv"
 asistencia_csv = "asistencia/asistencia.csv"
 ingresos_csv = "manos/registro_de_ingresos.csv"
 
 [parametros]
-umbral_reconocimiento = 0.8
+umbral_reconocimiento = 0.80
 metodo_comparacion = "minimo" # "minimo" o "promedio"
 intervalo_frames_asistencia = 100
-registro_permanencia_activo = false # Desactivado por defecto (Sección 13: sin vigilancia pasiva)
-frames_cara_estable = 4
-tolerancia_movimiento_px = 35
+registro_permanencia_activo = false # Desactivado por privacidad (Sección 13)
+frames_cara_estable = 3
+tolerancia_movimiento_px = 45
+frames_confirmacion_gesto = 5
 muestras_alta = 5
-cooldown_gesto_segundos = 3.0
+cooldown_gesto_segundos = 4.0
 pin_admin = "1234"
+token_dispositivo = "lis-local-token-2026"
+puerto_portero = 8080
 proyecto = "LIS"
