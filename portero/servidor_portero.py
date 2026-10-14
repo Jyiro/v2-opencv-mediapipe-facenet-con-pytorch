@@ -248,7 +248,10 @@ class ManejadorPortero(BaseHTTPRequestHandler):
                 "orden_enrolamiento", {"activo": False, "estado": "inactivo"}
             )
             estado["camara_runtime"] = repositorio.leer_estado_runtime(
-                "camara_estado", {"activa": False, "fps": 0.0, "rostros_en_cuadro": 0}
+                "camara_estado", {"activa": False, "fps": 0.0, "rostros_en_cuadro": 0, "fuente": "0"}
+            )
+            estado["orden_camara"] = repositorio.leer_estado_runtime(
+                "orden_camara", {"fuente": "0"}
             )
             estado["ultimos_eventos"] = list(reversed(eventos[-40:]))
             self._responder_json(200, estado)
@@ -294,10 +297,32 @@ class ManejadorPortero(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         ruta = parsed.path
+
+        if ruta == "/camara/frame_upload":
+            largo = int(self.headers.get("Content-Length", "0"))
+            if largo > 0:
+                datos_jpeg = self.rfile.read(largo)
+                ruta_subido = PROYECTO_DIR / "datos" / "frame_subido.jpg"
+                ruta_subido.parent.mkdir(parents=True, exist_ok=True)
+                tmp_subido = ruta_subido.with_suffix(".tmp")
+                tmp_subido.write_bytes(datos_jpeg)
+                tmp_subido.replace(ruta_subido)
+                repositorio.guardar_estado_runtime("orden_camara", {"fuente": "navegador", "t": ahora_iso()})
+                self._responder_json(200, {"ok": True})
+            else:
+                self._responder_json(400, {"error": "Cuerpo vacío"})
+            return
+
         try:
             datos = self._leer_body_json()
         except Exception as exc:
             self._responder_json(400, {"error": f"JSON inválido: {exc}"})
+            return
+
+        if ruta == "/camara/configurar":
+            fuente = str(datos.get("fuente", "0")).strip()
+            repositorio.guardar_estado_runtime("orden_camara", {"fuente": fuente, "t": ahora_iso()})
+            self._responder_json(200, {"ok": True, "fuente": fuente})
             return
 
         if ruta == "/events":

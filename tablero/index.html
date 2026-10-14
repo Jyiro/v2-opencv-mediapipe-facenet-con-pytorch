@@ -378,11 +378,55 @@
         <div class="card">
           <div class="card-header">
             <div class="card-title">📷 Pipeline Facial MediaPipe + FaceNet (Vivo)</div>
-            <button class="btn btn-outline" onclick="tocarSensorTouch()">👆 Simular TOUCH</button>
+            <div style="display:flex; gap:6px;">
+              <button class="btn btn-outline" style="padding:5px 10px;" onclick="tocarSensorTouch()">👆 Simular TOUCH</button>
+            </div>
           </div>
+
+          <!-- Selector de Cámara y Permisos del Navegador -->
+          <div style="background:var(--panel-alt); border:1px solid var(--border); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+              <span style="font-size:0.82rem; font-weight:700; color:var(--text); display:flex; align-items:center; gap:6px;">
+                📹 Selector de Cámara:
+              </span>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <span id="badge-fuente-activa" class="badge badge-blue">Fuente: Servidor</span>
+                <select id="sel-fuente-camara" style="width:auto; padding:5px 9px;" onchange="alCambiarSelectorCamara(this.value)">
+                  <option value="0">Webcam 0 (Servidor)</option>
+                  <option value="1">Webcam 1 (Servidor / USB)</option>
+                  <option value="2">Webcam 2 (Servidor)</option>
+                  <option value="droidcam">📱 DroidCam / Stream IP</option>
+                  <option value="navegador">🤳 Cámara de este Navegador</option>
+                  <option value="simulada">🧪 Modo Simulado</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Panel DroidCam IP -->
+            <div id="panel-droidcam" style="display:none; gap:8px; align-items:center;">
+              <input id="inp-url-droidcam" type="text" placeholder="http://192.168.100.18:4747/video" value="http://192.168.100.18:4747/video" style="flex:1; padding:6px 9px;" />
+              <button class="btn btn-green" style="padding:6px 12px;" onclick="conectarDroidcam()">Conectar IP</button>
+            </div>
+
+            <!-- Panel Cámara de este Navegador (getUserMedia con permisos) -->
+            <div id="panel-camara-navegador" style="display:none; flex-direction:column; gap:8px;">
+              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                <button id="btn-activar-webcam" class="btn btn-green" onclick="activarCamaraNavegador()">📹 Activar y Otorgar Permiso</button>
+                <select id="sel-dispositivos-nav" style="display:none; flex:1; padding:6px 9px;" onchange="cambiarDispositivoNav(this.value)"></select>
+                <button id="btn-detener-webcam" class="btn btn-red" style="display:none; padding:6px 12px;" onclick="detenerCamaraNavegador()">Detener</button>
+              </div>
+              <div id="lbl-estado-webcam-nav" style="font-size:0.78rem; color:var(--muted);">
+                💡 Usá la cámara frontal o trasera de tu celular/tablet transmitiendo directamente al motor de FaceNet.
+              </div>
+            </div>
+          </div>
+
           <div class="video-box">
             <img id="img-camara" src="/video_feed" alt="Stream de cámara en vivo" />
           </div>
+
+          <video id="video-local-capture" autoplay playsinline muted style="display:none;"></video>
+          <canvas id="canvas-local-capture" width="640" height="480" style="display:none;"></canvas>
 
           <div class="grove-housing">
             <div class="leds-row">
@@ -588,6 +632,125 @@
   <script>
     let ultimoBeepTs = "";
     let estadoGlobal = null;
+    let streamLocalWebcam = null;
+    let intervaloSubidaWebcam = null;
+    let subiendoCuadro = false;
+
+    async function alCambiarSelectorCamara(val) {
+      const pnlDroid = document.getElementById('panel-droidcam');
+      const pnlNav = document.getElementById('panel-camara-navegador');
+      pnlDroid.style.display = (val === 'droidcam') ? 'flex' : 'none';
+      pnlNav.style.display = (val === 'navegador') ? 'flex' : 'none';
+
+      if (val !== 'droidcam' && val !== 'navegador') {
+        if (streamLocalWebcam) detenerCamaraNavegador(false);
+        await apiPost('/camara/configurar', { fuente: val });
+        actualizarEstado();
+      }
+    }
+
+    async function conectarDroidcam() {
+      const url = document.getElementById('inp-url-droidcam').value.trim();
+      if (!url) { alert('Ingrese la URL de DroidCam o Stream IP.'); return; }
+      if (streamLocalWebcam) detenerCamaraNavegador(false);
+      await apiPost('/camara/configurar', { fuente: url });
+      actualizarEstado();
+    }
+
+    async function activarCamaraNavegador(deviceId) {
+      const btnActivar = document.getElementById('btn-activar-webcam');
+      const btnDetener = document.getElementById('btn-detener-webcam');
+      const selDisp = document.getElementById('sel-dispositivos-nav');
+      const lblEstado = document.getElementById('lbl-estado-webcam-nav');
+
+      try {
+        lblEstado.textContent = 'Solicitando permisos de cámara al navegador...';
+        if (streamLocalWebcam) {
+          streamLocalWebcam.getTracks().forEach(t => t.stop());
+        }
+
+        const constraints = {
+          video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          audio: false
+        };
+
+        streamLocalWebcam = await navigator.mediaDevices.getUserMedia(constraints);
+        const videoElem = document.getElementById('video-local-capture');
+        videoElem.srcObject = streamLocalWebcam;
+        await videoElem.play();
+
+        try {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = devices.filter(d => d.kind === 'videoinput');
+          if (videoDevices.length > 0) {
+            selDisp.innerHTML = videoDevices.map((d, i) => `<option value="${d.deviceId}">${d.label || 'Cámara ' + (i + 1)}</option>`).join('');
+            if (videoDevices.length > 1) {
+              selDisp.style.display = 'inline-block';
+              if (deviceId) selDisp.value = deviceId;
+            }
+          }
+        } catch (e) {}
+
+        btnActivar.style.display = 'none';
+        btnDetener.style.display = 'inline-block';
+        lblEstado.style.color = '#34d399';
+        lblEstado.textContent = '🟢 Cámara del navegador activa: transmitiendo fotogramas al pipeline de LIS...';
+
+        await apiPost('/camara/configurar', { fuente: 'navegador' });
+
+        if (intervaloSubidaWebcam) clearInterval(intervaloSubidaWebcam);
+        const canvasElem = document.getElementById('canvas-local-capture');
+        const ctx = canvasElem.getContext('2d');
+
+        intervaloSubidaWebcam = setInterval(() => {
+          if (!streamLocalWebcam || subiendoCuadro || videoElem.readyState < 2) return;
+          subiendoCuadro = true;
+          ctx.drawImage(videoElem, 0, 0, canvasElem.width, canvasElem.height);
+          canvasElem.toBlob(blob => {
+            if (blob) {
+              fetch('/camara/frame_upload', {
+                method: 'POST',
+                headers: { 'Content-Type': 'image/jpeg' },
+                body: blob
+              }).finally(() => { subiendoCuadro = false; });
+            } else {
+              subiendoCuadro = false;
+            }
+          }, 'image/jpeg', 0.82);
+        }, 85);
+
+      } catch (err) {
+        console.error('Error al acceder a la cámara:', err);
+        lblEstado.style.color = '#f87171';
+        lblEstado.textContent = '❌ Permiso denegado o error: ' + (err.message || 'No se pudo acceder a la cámara.');
+        alert('No se pudo acceder a la cámara. Asegúrese de otorgar permisos en su navegador.');
+      }
+    }
+
+    function cambiarDispositivoNav(deviceId) {
+      activarCamaraNavegador(deviceId);
+    }
+
+    async function detenerCamaraNavegador(notificarServidor = true) {
+      if (intervaloSubidaWebcam) {
+        clearInterval(intervaloSubidaWebcam);
+        intervaloSubidaWebcam = null;
+      }
+      if (streamLocalWebcam) {
+        streamLocalWebcam.getTracks().forEach(t => t.stop());
+        streamLocalWebcam = null;
+      }
+      document.getElementById('btn-activar-webcam').style.display = 'inline-block';
+      document.getElementById('btn-detener-webcam').style.display = 'none';
+      document.getElementById('sel-dispositivos-nav').style.display = 'none';
+      const lbl = document.getElementById('lbl-estado-webcam-nav');
+      lbl.style.color = 'var(--muted)';
+      lbl.textContent = 'Cámara del navegador detenida.';
+      if (notificarServidor) {
+        await apiPost('/camara/configurar', { fuente: '0' });
+        document.getElementById('sel-fuente-camara').value = '0';
+      }
+    }
 
     function cambiarVista(nombre, btn) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
@@ -754,6 +917,17 @@
 
         document.getElementById('lbl-eventos').textContent = st.total_eventos_validos || 0;
         document.getElementById('lbl-fps').textContent = (st.camara_runtime?.fps || 0).toFixed(1);
+
+        const camSt = st.camara_runtime || {};
+        const fuenteActiva = (st.orden_camara?.fuente || camSt.fuente || '0').toLowerCase();
+        const badge = document.getElementById('badge-fuente-activa');
+        if (badge) {
+          const esNav = (fuenteActiva === 'navegador');
+          const esIp = fuenteActiva.startsWith('http');
+          const textoBadge = esNav ? '🤳 Navegador' : (esIp ? '📱 DroidCam IP' : `📷 Fuente: ${fuenteActiva}`);
+          badge.textContent = textoBadge;
+          badge.className = 'badge ' + (esNav ? 'badge-green' : (esIp ? 'badge-amber' : 'badge-blue'));
+        }
 
         // Banner de enrolamiento
         const enr = st.enrolamiento || {};

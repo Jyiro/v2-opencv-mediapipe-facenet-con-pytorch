@@ -400,11 +400,12 @@ class PipelineReconocimientoLIS:
         cv.rectangle(overlay, (0, 0), (fw, 44), (18, 24, 38), -1)
         cv.addWeighted(overlay, 0.82, frame_bgr, 0.18, 0, frame_bgr)
 
+        fuente_corta = str(self.fuente_camara)[:14]
         texto_hdr = (
-            f"LIS Vision | FPS: {fps:.1f} | Perfiles: {len(self.base_embeddings)} | "
-            f"Presentes: {len(presentes)} | Umbral d<{self.umbral:.2f}"
+            f"LIS Vision | FPS: {fps:.1f} | Cam: {fuente_corta} | "
+            f"Presentes: {len(presentes)} | d<{self.umbral:.2f}"
         )
-        cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.56, (235, 240, 245), 1, cv.LINE_AA)
+        cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.54, (235, 240, 245), 1, cv.LINE_AA)
 
         for pista in self.pistas:
             x, y, w, h = pista.bbox
@@ -479,29 +480,84 @@ class PipelineReconocimientoLIS:
         fps_actual = 25.0
         t_prev = time.perf_counter()
         frame_idx = 0
+        ruta_frame_subido = PROYECTO_DIR / "datos" / "frame_subido.jpg"
 
         with (
             FaceDetector.create_from_options(opciones_caras) as detector_caras,
             GestureRecognizer.create_from_options(opciones_manos) as reconocedor_manos,
         ):
             while True:
-                ok, frame = cap.read()
+                frame_idx += 1
+
+                # Comprobar si se solicitó un cambio de cámara desde el Tablero Web
+                if frame_idx % 12 == 0:
+                    orden_cam = self.repositorio.leer_estado_runtime("orden_camara", {})
+                    fuente_orden = orden_cam.get("fuente")
+                    if fuente_orden is not None and str(fuente_orden).strip() != str(self.fuente_camara).strip():
+                        logging.info("Cambio de cámara solicitado vía Web: %s -> %s", self.fuente_camara, fuente_orden)
+                        self.fuente_camara = fuente_orden
+                        if cap and cap.isOpened():
+                            cap.release()
+                        cap = self._abrir_camara()
+
+                es_navegador = str(self.fuente_camara).lower() == "navegador"
+
+                if es_navegador:
+                    if ruta_frame_subido.exists() and ruta_frame_subido.stat().st_size > 100:
+                        try:
+                            frame = cv.imread(str(ruta_frame_subido))
+                            ok = frame is not None
+                        except Exception:
+                            ok, frame = False, None
+                    else:
+                        ok, frame = False, None
+                else:
+                    ok, frame = cap.read() if (cap and cap.isOpened()) else (False, None)
+
                 if not ok or frame is None:
                     frame = np.zeros((480, 640, 3), dtype=np.uint8)
-                    cv.putText(
-                        frame,
-                        "Cámara sin señal - Modo Simulado Activo",
-                        (60, 240),
-                        cv.FONT_HERSHEY_SIMPLEX,
-                        0.7,
-                        (180, 180, 180),
-                        2,
-                    )
+                    if es_navegador:
+                        cv.putText(
+                            frame,
+                            "Esperando video desde el navegador...",
+                            (40, 230),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.65,
+                            (0, 220, 255),
+                            2,
+                        )
+                        cv.putText(
+                            frame,
+                            "Active la camara en el Tablero Web",
+                            (80, 270),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.55,
+                            (180, 180, 180),
+                            1,
+                        )
+                    else:
+                        cv.putText(
+                            frame,
+                            "Camara sin senal - Modo Simulado Activo",
+                            (60, 230),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.68,
+                            (180, 180, 180),
+                            2,
+                        )
+                        cv.putText(
+                            frame,
+                            f"Fuente: {self.fuente_camara} (Cambie camara en la Web)",
+                            (60, 270),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.52,
+                            (100, 180, 255),
+                            1,
+                        )
                     time.sleep(0.05)
-                elif self.espejo:
+                elif self.espejo and not es_navegador:
                     frame = cv.flip(frame, 1)
 
-                frame_idx += 1
                 t_now = time.perf_counter()
                 dt = max(1e-4, t_now - t_prev)
                 t_prev = t_now
@@ -547,6 +603,7 @@ class PipelineReconocimientoLIS:
                             "activa": True,
                             "fps": round(fps_actual, 1),
                             "rostros_en_cuadro": len(self.pistas),
+                            "fuente": str(self.fuente_camara),
                         },
                     )
 
