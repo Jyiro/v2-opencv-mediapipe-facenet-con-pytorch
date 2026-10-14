@@ -1,0 +1,27 @@
+# Configuración para el sistema de reconocimiento facial y asistencia LIS
+
+[camara]
+# Índice del dispositivo de cámara (0 suele ser la webcam integrada o primera USB)
+indice = 0
+# Backend de OpenCV: "auto", "dshow" (solo Windows), "v4l2" (Linux)
+backend = "auto"
+
+[modelos]
+# Rutas relativas a la carpeta mediapipe/ o rutas absolutas
+detector_caras = "blaze_face_short_range.tflite"
+reconocedor_manos = "manos/gesture_recognizer.task"
+landmarks_caras = "face_landmarker.task"
+
+[archivos]
+# Rutas relativas a la carpeta mediapipe/ o rutas absolutas
+caras_csv = "caras/caras.csv"
+asistencia_csv = "asistencia/asistencia.csv"
+ingresos_csv = "manos/registro_de_ingresos.csv"
+
+[parametros]
+# Distancia euclídea máxima para considerar coincidencia (menor es más estricto)
+umbral_reconocimiento = 0.8
+# Intervalo de frames para registrar asistencia por permanencia
+intervalo_frames_asistencia = 100
+# Identificador de proyecto por defecto
+proyecto = "LIS"
