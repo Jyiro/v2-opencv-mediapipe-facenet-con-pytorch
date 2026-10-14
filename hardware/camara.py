@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 import threading
 import time
 from typing import Any
@@ -23,6 +24,9 @@ logger = logging.getLogger(__name__)
 
 _frame_jpeg_lock = threading.Lock()
 _ultimo_frame_jpeg: bytes | None = None
+
+_frame_subido_lock = threading.Lock()
+_ultimo_frame_subido: bytes | None = None
 
 
 def guardar_frame_jpeg(cuadro_bgr: np.ndarray, calidad: int = 75) -> None:
@@ -44,6 +48,40 @@ def obtener_frame_jpeg() -> bytes | None:
     """Devuelve los bytes JPEG del último cuadro disponible para clientes web."""
     with _frame_jpeg_lock:
         return _ultimo_frame_jpeg
+
+
+def guardar_frame_subido_jpeg(datos_jpeg: bytes) -> None:
+    """Almacena en memoria el cuadro JPEG enviado por un cliente web (celular/tablet)."""
+    global _ultimo_frame_subido
+    if not datos_jpeg:
+        return
+    with _frame_subido_lock:
+        _ultimo_frame_subido = datos_jpeg
+
+
+def obtener_frame_subido_jpeg() -> bytes | None:
+    """Obtiene los bytes JPEG del último cuadro subido desde el navegador."""
+    with _frame_subido_lock:
+        return _ultimo_frame_subido
+
+
+def guardar_frame_disco_seguro(datos_jpeg: bytes, ruta_destino: Path) -> None:
+    """Escribe a disco de manera segura en Windows sin fallar por bloqueos concurrentes de lectura."""
+    if not datos_jpeg:
+        return
+    try:
+        ruta_destino.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            ruta_destino.write_bytes(datos_jpeg)
+        except (PermissionError, OSError):
+            tmp_path = ruta_destino.with_suffix(".tmp")
+            try:
+                tmp_path.write_bytes(datos_jpeg)
+                tmp_path.replace(ruta_destino)
+            except (PermissionError, OSError):
+                pass
+    except Exception:
+        pass
 
 
 def normalizar_origen_camara(origen: int | str) -> int | str:

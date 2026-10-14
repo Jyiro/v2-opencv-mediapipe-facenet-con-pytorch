@@ -15,6 +15,11 @@ if str(PROYECTO_DIR) not in sys.path:
     sys.path.insert(0, str(PROYECTO_DIR))
 
 from hardware.serie import ClienteFichadorSerie
+from hardware.camara import (
+    guardar_frame_disco_seguro,
+    guardar_frame_subido_jpeg,
+    obtener_frame_jpeg,
+)
 from nucleo.base_datos import RepositorioLIS
 from nucleo.eventos import ahora_iso, crear_evento, derivar_estado, validar_evento
 
@@ -258,8 +263,13 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             return
 
         if ruta == "/frame.jpg":
-            if RUTA_FRAME.exists():
-                jpg = RUTA_FRAME.read_bytes()
+            jpg = obtener_frame_jpeg()
+            if jpg is None and RUTA_FRAME.exists():
+                try:
+                    jpg = RUTA_FRAME.read_bytes()
+                except (PermissionError, OSError):
+                    jpg = None
+            if jpg:
                 self.send_response(200)
                 self.send_header("Content-Type", "image/jpeg")
                 self.send_header("Content-Length", str(len(jpg)))
@@ -280,14 +290,18 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             self.end_headers()
             try:
                 while True:
-                    if RUTA_FRAME.exists():
-                        jpg = RUTA_FRAME.read_bytes()
-                        if jpg:
-                            self.wfile.write(b"--frame\r\n")
-                            self.wfile.write(b"Content-Type: image/jpeg\r\n")
-                            self.wfile.write(f"Content-Length: {len(jpg)}\r\n\r\n".encode("ascii"))
-                            self.wfile.write(jpg)
-                            self.wfile.write(b"\r\n")
+                    jpg = obtener_frame_jpeg()
+                    if jpg is None and RUTA_FRAME.exists():
+                        try:
+                            jpg = RUTA_FRAME.read_bytes()
+                        except (PermissionError, OSError):
+                            jpg = None
+                    if jpg:
+                        self.wfile.write(b"--frame\r\n")
+                        self.wfile.write(b"Content-Type: image/jpeg\r\n")
+                        self.wfile.write(f"Content-Length: {len(jpg)}\r\n\r\n".encode("ascii"))
+                        self.wfile.write(jpg)
+                        self.wfile.write(b"\r\n")
                     time.sleep(0.08)
             except (BrokenPipeError, ConnectionResetError):
                 return
@@ -302,11 +316,9 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             largo = int(self.headers.get("Content-Length", "0"))
             if largo > 0:
                 datos_jpeg = self.rfile.read(largo)
+                guardar_frame_subido_jpeg(datos_jpeg)
                 ruta_subido = PROYECTO_DIR / "datos" / "frame_subido.jpg"
-                ruta_subido.parent.mkdir(parents=True, exist_ok=True)
-                tmp_subido = ruta_subido.with_suffix(".tmp")
-                tmp_subido.write_bytes(datos_jpeg)
-                tmp_subido.replace(ruta_subido)
+                guardar_frame_disco_seguro(datos_jpeg, ruta_subido)
                 repositorio.guardar_estado_runtime("orden_camara", {"fuente": "navegador", "t": ahora_iso()})
                 self._responder_json(200, {"ok": True})
             else:

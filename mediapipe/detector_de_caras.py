@@ -17,6 +17,12 @@ MEDIAPIPE_DIR = Path(__file__).resolve().parent
 if str(PROYECTO_DIR) not in sys.path:
     sys.path.insert(0, str(PROYECTO_DIR))
 
+from hardware.camara import (
+    guardar_frame_disco_seguro,
+    guardar_frame_jpeg,
+    normalizar_origen_camara,
+    obtener_frame_subido_jpeg,
+)
 from hardware.serie import ClienteFichadorSerie
 from nucleo.base_datos import RepositorioLIS
 from nucleo.comparacion import consultar_embeddings
@@ -125,14 +131,25 @@ class PipelineReconocimientoLIS:
         self.ultimas_manos_mp = result
 
     def _abrir_camara(self) -> cv.VideoCapture:
-        if isinstance(self.fuente_camara, str) and not self.fuente_camara.isdigit():
-            if self.fuente_camara.lower() in ("simulada", "simulado", "virtual", "mock"):
+        fuente_norm = normalizar_origen_camara(self.fuente_camara)
+        if isinstance(fuente_norm, str) and not fuente_norm.isdigit():
+            if fuente_norm.lower() in ("simulada", "simulado", "virtual", "mock"):
                 logging.info("Iniciando en modo cámara simulada (sin hardware).")
                 return cv.VideoCapture()
-            logging.info("Abriendo stream de cámara en %s", self.fuente_camara)
-            return cv.VideoCapture(self.fuente_camara)
+            logging.info("Abriendo stream de cámara en %s", fuente_norm)
+            try:
+                cap = cv.VideoCapture(fuente_norm)
+                if not cap.isOpened():
+                    logging.warning(
+                        "No se pudo conectar a la cámara IP en %s (verifique que DroidCam esté activo en el móvil y en la misma Wi-Fi).",
+                        fuente_norm,
+                    )
+                return cap
+            except Exception as exc:
+                logging.warning("Excepción al conectar con stream %s: %s", fuente_norm, exc)
+                return cv.VideoCapture()
         try:
-            idx = int(self.fuente_camara)
+            idx = int(fuente_norm)
             backend = str(self.config.get("camara", {}).get("backend", "auto")).lower()
             if backend == "dshow" and sys.platform.startswith("win"):
                 cap = cv.VideoCapture(idx, cv.CAP_DSHOW)
@@ -503,7 +520,15 @@ class PipelineReconocimientoLIS:
                 es_navegador = str(self.fuente_camara).lower() == "navegador"
 
                 if es_navegador:
-                    if ruta_frame_subido.exists() and ruta_frame_subido.stat().st_size > 100:
+                    raw_subido = obtener_frame_subido_jpeg()
+                    if raw_subido:
+                        try:
+                            arr = np.frombuffer(raw_subido, dtype=np.uint8)
+                            frame = cv.imdecode(arr, cv.IMREAD_COLOR)
+                            ok = frame is not None
+                        except Exception:
+                            ok, frame = False, None
+                    elif ruta_frame_subido.exists() and ruta_frame_subido.stat().st_size > 100:
                         try:
                             frame = cv.imread(str(ruta_frame_subido))
                             ok = frame is not None
@@ -520,7 +545,7 @@ class PipelineReconocimientoLIS:
                         cv.putText(
                             frame,
                             "Esperando video desde el navegador...",
-                            (40, 230),
+                            (40, 220),
                             cv.FONT_HERSHEY_SIMPLEX,
                             0.65,
                             (0, 220, 255),
@@ -528,30 +553,48 @@ class PipelineReconocimientoLIS:
                         )
                         cv.putText(
                             frame,
-                            "Active la camara en el Tablero Web",
-                            (80, 270),
+                            "Haga clic en 'Activar Camara' en el Tablero Web",
+                            (40, 260),
                             cv.FONT_HERSHEY_SIMPLEX,
-                            0.55,
+                            0.52,
                             (180, 180, 180),
                             1,
                         )
                     else:
                         cv.putText(
                             frame,
-                            "Camara sin senal - Modo Simulado Activo",
-                            (60, 230),
+                            "Camara sin senal / Desconectada",
+                            (50, 200),
                             cv.FONT_HERSHEY_SIMPLEX,
                             0.68,
-                            (180, 180, 180),
+                            (30, 70, 240),
                             2,
                         )
                         cv.putText(
                             frame,
-                            f"Fuente: {self.fuente_camara} (Cambie camara en la Web)",
-                            (60, 270),
+                            f"Fuente: {str(self.fuente_camara)[:40]}",
+                            (50, 240),
                             cv.FONT_HERSHEY_SIMPLEX,
                             0.52,
-                            (100, 180, 255),
+                            (210, 210, 210),
+                            1,
+                        )
+                        cv.putText(
+                            frame,
+                            "Si uso IP: revise DroidCam y que esten en la misma Wi-Fi",
+                            (50, 280),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.46,
+                            (255, 180, 0),
+                            1,
+                        )
+                        cv.putText(
+                            frame,
+                            "O cambie a 'Camara de este Navegador' en la Web",
+                            (50, 315),
+                            cv.FONT_HERSHEY_SIMPLEX,
+                            0.46,
+                            (100, 240, 140),
                             1,
                         )
                     time.sleep(0.05)
@@ -590,11 +633,13 @@ class PipelineReconocimientoLIS:
                 self._dibujar_hud(frame, fps_actual, presentes)
 
                 if frame_idx % 2 == 0:
-                    ok_jpg, buf = cv.imencode(".jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 82])
-                    if ok_jpg:
-                        tmp_path = self.ruta_frame_compartido.with_suffix(".tmp")
-                        tmp_path.write_bytes(buf.tobytes())
-                        tmp_path.replace(self.ruta_frame_compartido)
+                    try:
+                        guardar_frame_jpeg(frame, calidad=82)
+                        ok_jpg, buf = cv.imencode(".jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 82])
+                        if ok_jpg:
+                            guardar_frame_disco_seguro(buf.tobytes(), self.ruta_frame_compartido)
+                    except Exception:
+                        pass
 
                 if frame_idx % 15 == 0:
                     self.repositorio.guardar_estado_runtime(
