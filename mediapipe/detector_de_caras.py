@@ -20,7 +20,7 @@ if str(PROYECTO_DIR) not in sys.path:
 from hardware.serie import ClienteFichadorSerie
 from nucleo.base_datos import RepositorioLIS
 from nucleo.comparacion import consultar_embeddings
-from nucleo.eventos import crear_evento
+from nucleo.eventos import crear_evento, derivar_estado
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -126,15 +126,31 @@ class PipelineReconocimientoLIS:
 
     def _abrir_camara(self) -> cv.VideoCapture:
         if isinstance(self.fuente_camara, str) and not self.fuente_camara.isdigit():
+            if self.fuente_camara.lower() in ("simulada", "simulado", "virtual", "mock"):
+                logging.info("Iniciando en modo cámara simulada (sin hardware).")
+                return cv.VideoCapture()
             logging.info("Abriendo stream de cámara en %s", self.fuente_camara)
             return cv.VideoCapture(self.fuente_camara)
-        idx = int(self.fuente_camara)
-        backend = str(self.config.get("camara", {}).get("backend", "auto")).lower()
-        if backend == "dshow" and sys.platform.startswith("win"):
-            return cv.VideoCapture(idx, cv.CAP_DSHOW)
-        if backend == "v4l2" and sys.platform.startswith("linux"):
-            return cv.VideoCapture(idx, cv.CAP_V4L2)
-        return cv.VideoCapture(idx)
+        try:
+            idx = int(self.fuente_camara)
+            backend = str(self.config.get("camara", {}).get("backend", "auto")).lower()
+            if backend == "dshow" and sys.platform.startswith("win"):
+                cap = cv.VideoCapture(idx, cv.CAP_DSHOW)
+            elif backend == "v4l2" and sys.platform.startswith("linux"):
+                cap = cv.VideoCapture(idx, cv.CAP_V4L2)
+            else:
+                cap = cv.VideoCapture(idx)
+            if not cap.isOpened():
+                logging.info("Reintentando apertura de cámara %d con backend por defecto...", idx)
+                cap = cv.VideoCapture(idx)
+            if cap.isOpened():
+                logging.info("Cámara física conectada exitosamente en índice %d.", idx)
+            else:
+                logging.warning("No se detectó cámara física en índice %d. Activando modo simulado (sin señal).", idx)
+            return cap
+        except Exception as exc:
+            logging.warning("Excepción al abrir cámara %s: %s. Usando modo simulado.", self.fuente_camara, exc)
+            return cv.VideoCapture()
 
     def _actualizar_pistas(self, frame_bgr: np.ndarray, detecciones: list[tuple[int, int, int, int]]) -> list[PistaRostro]:
         nuevas_pistas: list[PistaRostro] = []
