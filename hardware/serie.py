@@ -37,8 +37,8 @@ class ClienteFichadorSerie:
         self.estado: dict[str, Any] = {
             "conectado_fisico": False,
             "modo_simulado": True,
-            "linea1": "LIS UTN-FRC     ",
-            "linea2": "SISTEMA ACTIVO  ",
+            "linea1": "UTN FRC - LIS   ",
+            "linea2": "EN ESPERA       ",
             "rgb": [0, 180, 120],
             "leds": {"azul": 0, "verde": 1, "rojo": 0},
             "ultimo_beep": {"tipo": "none", "t": ""},

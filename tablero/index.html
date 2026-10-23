@@ -3,149 +3,524 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LIS — Plataforma de Herramientas Internas (UTN FRC)</title>
+  <title>LIS · Consola Operativa — UTN Facultad Regional Córdoba</title>
+  <meta name="description" content="Sistema interno de control de presencia, biometría, inventario y telemetría del Laboratorio de Investigación de Software (LIS - UTN FRC)." />
+  <script>
+    (function () {
+      var t;
+      try { t = localStorage.getItem('lis-tema'); } catch (e) {}
+      if (t !== 'light' && t !== 'dark') {
+        t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+      }
+      document.documentElement.setAttribute('data-theme', t);
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
   <style>
     :root {
-      --bg: #090d16;
-      --panel: #111827;
-      --panel-alt: #182235;
-      --border: #26334d;
-      --text: #f3f4f6;
-      --muted: #9ca3af;
-      --green: #10b981;
-      --blue: #3b82f6;
-      --amber: #f59e0b;
-      --red: #ef4444;
-      --purple: #8b5cf6;
+      --bg: #f3f4f6;
+      --surface: #ffffff;
+      --surface-alt: #f8f9fb;
+      --surface-subtle: #eef0f4;
+      --field: #ffffff;
+      --border: #d8dce5;
+      --border-strong: #bfc6d4;
+      --text: #11151f;
+      --text-secondary: #4a5365;
+      --muted: #6e788c;
+      --accent: #0f3d8a;
+      --accent-hover: #0b2e6b;
+      --accent-soft: #e6eefc;
+      --accent-ink: #0f3d8a;
+      --green: #0d8a5f;
+      --green-soft: #e3f5ee;
+      --green-ink: #086645;
+      --blue: #1d5bd6;
+      --blue-soft: #e6eefc;
+      --blue-ink: #1545a8;
+      --amber: #c47708;
+      --amber-soft: #fef3de;
+      --amber-ink: #8a5000;
+      --red: #c92a3a;
+      --red-soft: #fce8ea;
+      --red-ink: #9c1b28;
+      --ok: #0d8a5f;
+      --bad: #c92a3a;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+      --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      --font-mono: "IBM Plex Mono", "Consolas", "SFMono-Regular", monospace;
+      color-scheme: light;
     }
+
+    html[data-theme="dark"] {
+      --bg: #0b0d11;
+      --surface: #11141b;
+      --surface-alt: #151922;
+      --surface-subtle: #1a1f2b;
+      --field: #0d1016;
+      --border: #232836;
+      --border-strong: #32394c;
+      --text: #e6e9f0;
+      --text-secondary: #a2abb9;
+      --muted: #6d778a;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --accent-soft: rgba(59, 130, 246, 0.14);
+      --accent-ink: #93bbfd;
+      --green: #10b981;
+      --green-soft: rgba(16, 185, 129, 0.13);
+      --green-ink: #5eead4;
+      --blue: #3b82f6;
+      --blue-soft: rgba(59, 130, 246, 0.14);
+      --blue-ink: #93c5fd;
+      --amber: #f59e0b;
+      --amber-soft: rgba(245, 158, 11, 0.14);
+      --amber-ink: #fcd34d;
+      --red: #ef4444;
+      --red-soft: rgba(239, 68, 68, 0.14);
+      --red-ink: #fca5a5;
+      --ok: #34d399;
+      --bad: #f87171;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      color-scheme: dark;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: var(--font-sans);
+      font-size: 13.5px;
+      line-height: 1.45;
       min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+    :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+    .i {
+      width: 16px; height: 16px; flex: none;
+      fill: none; stroke: currentColor; stroke-width: 1.65;
+      stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    /* Estructura general */
+    .shell {
       display: flex;
       flex-direction: column;
+      min-height: 100vh;
     }
-    header {
-      background: rgba(17, 24, 39, 0.95);
+
+    /* Cabecera institucional superior */
+    .topbar {
+      background: var(--surface);
       border-bottom: 1px solid var(--border);
-      padding: 12px 22px;
+      padding: 0 24px;
+      min-height: 56px;
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 16px;
       flex-wrap: wrap;
-      gap: 14px;
-      position: sticky;
-      top: 0;
-      z-index: 50;
     }
-    .brand {
+    .brand-group {
       display: flex;
       align-items: center;
       gap: 12px;
     }
-    .brand-badge {
-      background: linear-gradient(135deg, var(--green), var(--blue));
-      color: #06101e;
-      font-weight: 800;
-      padding: 6px 11px;
-      border-radius: 8px;
-      letter-spacing: 0.5px;
+    .utn-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 6px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
     }
-    .brand h1 { font-size: 1.08rem; font-weight: 700; }
-    .brand small { color: var(--muted); font-size: 0.78rem; display: block; }
-    .nav-tabs {
+    .utn-mark svg {
+      width: 20px;
+      height: 20px;
+      stroke: currentColor;
+      stroke-width: 2;
+      fill: none;
+    }
+    .brand-titles {
       display: flex;
-      gap: 8px;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .brand-eyebrow {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .brand-titles h1 {
+      font-size: 0.94rem;
+      font-weight: 600;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       flex-wrap: wrap;
     }
-    .tab-btn {
-      background: var(--panel-alt);
-      color: var(--text);
-      border: 1px solid var(--border);
-      padding: 8px 14px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.86rem;
-      transition: all 0.15s;
-    }
-    .tab-btn.active {
-      background: var(--blue);
-      border-color: var(--blue);
-      color: #fff;
-    }
-    .status-bar {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      font-size: 0.82rem;
-    }
-    .pill {
+    .status-chip {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: var(--panel-alt);
+      gap: 7px;
+      height: 30px;
+      padding: 0 10px;
+      border-radius: 5px;
+      background: var(--surface-alt);
       border: 1px solid var(--border);
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+    }
+    .status-chip strong {
+      font-family: var(--font-mono);
       font-weight: 600;
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
     }
     .dot {
-      width: 9px;
-      height: 9px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
       background: var(--green);
-      box-shadow: 0 0 8px var(--green);
+      flex-shrink: 0;
     }
+    .dot.warn { background: var(--amber); }
+    .dot.off { background: var(--red); }
+
+    .mode-selector-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 30px;
+      padding: 0 4px 0 10px;
+      border-radius: 5px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      font-size: 0.76rem;
+      color: var(--text-secondary);
+    }
+    .mode-selector-wrap select {
+      border: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: var(--font-sans);
+      font-size: 0.76rem;
+      font-weight: 600;
+      padding: 2px 6px;
+      width: auto;
+      cursor: pointer;
+    }
+    .mode-selector-wrap select:focus { outline: none; }
+
+    .icon-btn {
+      width: 30px;
+      height: 30px;
+      border-radius: 5px;
+      border: 1px solid var(--border);
+      background: var(--surface-alt);
+      color: var(--text-secondary);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      transition: border-color 0.15s ease, color 0.15s ease;
+    }
+    .icon-btn:hover {
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    .icon-btn .ico-sol { display: none; }
+    html[data-theme="dark"] .icon-btn .ico-sol { display: block; }
+    html[data-theme="dark"] .icon-btn .ico-luna { display: none; }
+
+    /* Barra de navegación técnica + Cinta de avisos */
+    .subbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .nav-tabs {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      overflow-x: auto;
+    }
+    .tab-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 14px;
+      border: 0;
+      background: transparent;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s ease;
+    }
+    .tab-btn .tab-idx {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .tab-btn.active .tab-idx { color: var(--accent); }
+    .tab-btn.active::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 2px;
+      background: var(--accent);
+    }
+
+    .aviso-cinta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+      max-width: 480px;
+      cursor: pointer;
+    }
+    .aviso-cinta.has-notice {
+      background: var(--amber-soft);
+      border-color: rgba(245, 158, 11, 0.35);
+      color: var(--amber-ink);
+    }
+    .aviso-cinta .aviso-tag {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 1px 5px;
+      border-radius: 3px;
+      background: var(--surface-subtle);
+      color: var(--muted);
+    }
+    .aviso-cinta.has-notice .aviso-tag {
+      background: rgba(245, 158, 11, 0.2);
+      color: var(--amber-ink);
+    }
+    .aviso-cinta span#txt-cinta-aviso {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* Contenido principal */
     main {
       flex: 1;
-      padding: 18px 22px;
-      max-width: 1600px;
+      padding: 18px 24px 32px;
+      max-width: 1680px;
       width: 100%;
       margin: 0 auto;
     }
     .view { display: none; }
     .view.active { display: block; }
 
-    .grid-dashboard {
+    /* Banner de captura biométrica activa */
+    .enroll-banner {
+      background: var(--amber-soft);
+      border: 1px solid var(--amber);
+      color: var(--amber-ink);
+      padding: 10px 16px;
+      border-radius: 6px;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .enroll-banner.show { display: flex; }
+
+    /* Tira de métricas (reemplaza las 4 cards arcoíris) */
+    .metrics-strip {
       display: grid;
-      grid-template-columns: 1.15fr 1.15fr 1fr;
-      gap: 18px;
-    }
-    @media (max-width: 1180px) {
-      .grid-dashboard { grid-template-columns: 1fr; }
-    }
-    .card {
-      background: var(--panel);
+      grid-template-columns: repeat(5, 1fr);
+      background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      box-shadow: var(--shadow-sm);
+      overflow: hidden;
+    }
+    .metric-cell {
+      padding: 11px 16px;
+      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 4px;
     }
-    .card-header {
+    .metric-cell:last-child { border-right: 0; }
+    .metric-label {
+      font-family: var(--font-mono);
+      font-size: 0.67rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 10px;
+      justify-content: space-between;
     }
-    .card-title {
-      font-size: 0.96rem;
-      font-weight: 700;
-      letter-spacing: 0.2px;
+    .metric-value-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .metric-value {
+      font-family: var(--font-mono);
+      font-size: 1.3rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.1;
+      font-variant-numeric: tabular-nums;
+    }
+    .metric-sub {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    .env-inline {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 0.92rem;
+      font-weight: 600;
+      color: var(--text);
+      padding-top: 2px;
+    }
+    .env-inline span {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 3px;
+    }
+    .env-inline small {
+      font-size: 0.68rem;
+      font-weight: 400;
+      color: var(--muted);
+    }
+
+    /* Grilla principal de 3 paneles */
+    .grid-dashboard {
+      display: grid;
+      grid-template-columns: 1.18fr 1.12fr 1fr;
+      gap: 16px;
+      align-items: start;
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .panel-header {
+      padding: 10px 14px;
+      background: var(--surface-alt);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .panel-title-group {
       display: flex;
       align-items: center;
       gap: 8px;
     }
+    .panel-code {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 1px 5px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      background: var(--surface);
+    }
+    .panel-title {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .panel-body {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    /* Barra de fuente de cámara */
+    .cam-toolbar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 9px 11px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+    }
+    .cam-toolbar-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .cam-toolbar-label {
+      font-family: var(--font-mono);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+
+    /* Visor de video 4:3 */
     .video-box {
       width: 100%;
       aspect-ratio: 4 / 3;
-      background: #050811;
-      border-radius: 10px;
+      background: #0d1017;
+      border-radius: 5px;
       overflow: hidden;
       border: 1px solid var(--border);
       position: relative;
@@ -157,477 +532,851 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
+      position: relative;
+      z-index: 2;
+    }
+    .video-Overlay-meta {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      z-index: 3;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      color: rgba(226, 232, 240, 0.75);
+    }
+    .video-Overlay-meta span {
+      background: rgba(11, 13, 17, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      padding: 2px 6px;
+      border-radius: 3px;
     }
 
-    /* Grove 16x2 RGB LCD */
-    .grove-housing {
-      background: #0d1522;
-      border: 2px solid #2b3b55;
-      border-radius: 12px;
-      padding: 14px;
+    /* Módulo periférico serie (Reemplaza el bloque verde fosforescente de Arduino) */
+    .serial-module {
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
     }
-    .lcd-screen {
-      background: rgb(0, 180, 120);
-      color: #08120e;
-      font-family: "Courier New", Courier, monospace;
-      font-weight: 800;
-      font-size: 1.35rem;
-      letter-spacing: 3px;
-      padding: 14px 18px;
-      border-radius: 8px;
-      border: 4px solid #1e293b;
-      box-shadow: inset 0 2px 8px rgba(0,0,0,0.45), 0 0 18px rgba(16, 185, 129, 0.35);
-      transition: background-color 0.25s ease, box-shadow 0.25s ease;
+    .serial-meta-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-family: var(--font-mono);
+      font-size: 0.67rem;
       text-transform: uppercase;
-      line-height: 1.45;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+    }
+    .dip-leds {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+    .led-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.67rem;
+      color: var(--text-secondary);
+    }
+    .led-bulb {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--border-strong);
+    }
+    .led-bulb.on-verde { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6); }
+    .led-bulb.on-azul { background: #3b82f6; box-shadow: 0 0 6px rgba(59, 130, 246, 0.6); }
+    .led-bulb.on-rojo { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+
+    .lcd-readout {
+      background: #0d1016;
+      border: 1px solid #252b3b;
+      border-left: 3px solid var(--green);
+      border-radius: 4px;
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-family: var(--font-mono);
+      color: #d8dee9;
+    }
+    .lcd-lines {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      line-height: 1.35;
+      text-transform: uppercase;
     }
     .lcd-line {
       white-space: pre;
       overflow: hidden;
     }
-    .leds-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 0.8rem;
-      color: var(--muted);
+    .lcd-line:first-child {
+      color: #8b95a7;
+      font-size: 0.72rem;
     }
-    .dip-leds { display: flex; gap: 14px; align-items: center; }
-    .led-indicator {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
+    .lcd-spec-tag {
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      color: #5e6778;
+      text-align: right;
+      line-height: 1.3;
     }
-    .led-bulb {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      background: #1f2937;
-      border: 1px solid #374151;
-    }
-    .led-bulb.on-verde { background: #10b981; box-shadow: 0 0 10px #10b981; }
-    .led-bulb.on-azul { background: #3b82f6; box-shadow: 0 0 10px #3b82f6; }
-    .led-bulb.on-rojo { background: #ef4444; box-shadow: 0 0 10px #ef4444; }
 
+    /* Lista de presentes */
     .presence-list {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      max-height: 460px;
+      gap: 6px;
+      max-height: 430px;
       overflow-y: auto;
     }
-    .person-card {
-      background: var(--panel-alt);
+    .person-row {
+      background: var(--surface-alt);
       border: 1px solid var(--border);
-      border-left: 4px solid var(--green);
-      border-radius: 10px;
-      padding: 12px;
+      border-radius: 5px;
+      padding: 9px 12px;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 10px;
     }
-    .person-info h3 { font-size: 0.96rem; margin-bottom: 3px; }
-    .person-meta { font-size: 0.78rem; color: var(--muted); display: flex; gap: 8px; flex-wrap: wrap; }
-    .badge {
-      padding: 2px 8px;
-      border-radius: 6px;
-      font-size: 0.72rem;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    .badge-green { background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16,185,129,0.35); }
-    .badge-blue { background: rgba(59, 130, 246, 0.18); color: #60a5fa; border: 1px solid rgba(59,130,246,0.35); }
-    .badge-amber { background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245,158,11,0.35); }
-    .badge-red { background: rgba(239, 68, 68, 0.18); color: #f87171; border: 1px solid rgba(239,68,68,0.35); }
-
-    .btn {
-      background: var(--blue);
-      color: #fff;
-      border: none;
-      padding: 8px 13px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 0.82rem;
-      cursor: pointer;
-    }
-    .btn:hover { opacity: 0.92; }
-    .btn-green { background: var(--green); color: #04130d; }
-    .btn-amber { background: var(--amber); color: #181002; }
-    .btn-red { background: var(--red); }
-    .btn-outline {
-      background: transparent;
-      border: 1px solid var(--border);
-      color: var(--text);
-    }
-
-    .env-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
+    .person-main {
+      display: flex;
+      align-items: center;
       gap: 10px;
+      min-width: 0;
     }
-    .env-stat {
-      background: var(--panel-alt);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
+    .avatar-mono {
+      width: 28px;
+      height: 28px;
+      border-radius: 4px;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border-strong);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      font-weight: 600;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
     }
-    .env-stat span { font-size: 0.75rem; color: var(--muted); display: block; }
-    .env-stat strong { font-size: 1.15rem; }
+    .person-info h3 {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .person-meta {
+      font-family: var(--font-mono);
+      font-size: 0.71rem;
+      color: var(--muted);
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 2px;
+    }
+    .person-meta strong {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
 
-    .events-feed {
+    .section-divider {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-top: 4px;
       display: flex;
       flex-direction: column;
       gap: 8px;
-      max-height: 540px;
+    }
+    .subsection-title {
+      font-family: var(--font-mono);
+      font-size: 0.69rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* Etiquetas / Badges técnicos */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 0.67rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      border: 1px solid transparent;
+    }
+    .badge-green { background: var(--green-soft); color: var(--green-ink); border-color: rgba(16, 185, 129, 0.25); }
+    .badge-blue { background: var(--blue-soft); color: var(--blue-ink); border-color: rgba(59, 130, 246, 0.25); }
+    .badge-amber { background: var(--amber-soft); color: var(--amber-ink); border-color: rgba(245, 158, 11, 0.25); }
+    .badge-red { background: var(--red-soft); color: var(--red-ink); border-color: rgba(239, 68, 68, 0.25); }
+    .badge-neutral { background: var(--surface-subtle); color: var(--text-secondary); border-color: var(--border); }
+
+    /* Botones */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      background: var(--accent);
+      color: #ffffff;
+      border: 1px solid transparent;
+      padding: 6px 12px;
+      border-radius: 4px;
+      font-family: var(--font-sans);
+      font-weight: 500;
+      font-size: 0.78rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color 0.15s ease, border-color 0.15s ease;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-sm { padding: 4px 9px; font-size: 0.74rem; }
+    .btn-green { background: var(--green); color: #ffffff; }
+    .btn-green:hover { filter: brightness(1.08); }
+    .btn-amber { background: var(--amber); color: #ffffff; }
+    .btn-red { background: transparent; border-color: rgba(239, 68, 68, 0.4); color: var(--bad); }
+    .btn-red:hover { background: var(--red-soft); }
+    .btn-outline {
+      background: var(--surface);
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    .btn-outline:hover {
+      background: var(--surface-subtle);
+      border-color: var(--muted);
+    }
+
+    /* Bitácora de eventos (formato tabla/log de auditoría) */
+    .events-feed {
+      display: flex;
+      flex-direction: column;
+      max-height: 610px;
       overflow-y: auto;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      background: var(--surface-alt);
     }
     .event-row {
-      background: var(--panel-alt);
+      padding: 7px 10px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.77rem;
+      display: grid;
+      grid-template-columns: 58px auto 1fr;
+      align-items: center;
+      gap: 8px;
+    }
+    .event-row:last-child { border-bottom: 0; }
+    .event-time {
+      font-family: var(--font-mono);
+      font-size: 0.71rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+    .event-details {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .event-subject {
+      font-weight: 600;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .event-origin {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      color: var(--muted);
+    }
+
+    .loan-row {
+      background: var(--surface-alt);
       border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 9px 11px;
-      font-size: 0.8rem;
+      border-radius: 4px;
+      padding: 7px 10px;
+      font-size: 0.78rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 8px;
     }
 
+    .empty-state {
+      padding: 14px 12px;
+      border: 1px dashed var(--border);
+      border-radius: 4px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      text-align: center;
+    }
+
+    /* Formularios y Tablas */
     .form-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
       gap: 10px;
     }
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .field-label {
+      font-family: var(--font-mono);
+      font-size: 0.69rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-secondary);
+    }
     input, select {
-      background: #0b111e;
-      border: 1px solid var(--border);
+      background: var(--field);
+      border: 1px solid var(--border-strong);
       color: var(--text);
-      padding: 9px 11px;
-      border-radius: 8px;
-      font-size: 0.86rem;
+      padding: 7px 10px;
+      border-radius: 4px;
+      font-family: var(--font-sans);
+      font-size: 0.82rem;
       width: 100%;
     }
+    input:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    input::placeholder { color: var(--muted); }
+
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.86rem;
+      font-size: 0.81rem;
     }
     th, td {
       text-align: left;
-      padding: 10px 12px;
+      padding: 9px 11px;
       border-bottom: 1px solid var(--border);
     }
-    th { color: var(--muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; }
-    .enroll-banner {
-      background: rgba(245, 158, 11, 0.15);
-      border: 1px solid var(--amber);
-      color: #fde68a;
-      padding: 12px 16px;
-      border-radius: 10px;
-      display: none;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 14px;
+    th {
+      font-family: var(--font-mono);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.69rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      background: var(--surface-alt);
     }
-    .enroll-banner.show { display: flex; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover td { background: var(--surface-alt); }
+
+    @media (max-width: 1220px) {
+      .grid-dashboard { grid-template-columns: 1fr !important; }
+      .metrics-strip { grid-template-columns: repeat(2, 1fr); }
+      .metric-cell { border-bottom: 1px solid var(--border); }
+    }
+    @media (max-width: 760px) {
+      .topbar, .subbar, main { padding-left: 14px; padding-right: 14px; }
+      .metrics-strip { grid-template-columns: 1fr; }
+      .metric-cell { border-right: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; animation: none !important; }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <div class="brand">
-      <div class="brand-badge">LIS</div>
-      <div>
-        <h1>Laboratorio de Investigación de Software — UTN FRC</h1>
-        <small>Plataforma Offline-First de Asistencia Biométrica, Inventario y Estado Ambiental</small>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <!-- Isotipo Tecnológico UTN -->
+    <symbol id="i-utn" viewBox="0 0 24 24">
+      <line x1="12" y1="2.5" x2="12" y2="21.5" />
+      <line x1="3.5" y1="12" x2="20.5" y2="12" />
+      <circle cx="12" cy="12" r="3.4" />
+      <path d="M6.2 4.5 A 7.2 7.2 0 0 0 17.8 4.5" />
+      <path d="M6.2 19.5 A 7.2 7.2 0 0 1 17.8 19.5" />
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4 8.5 8.5 0 1 0 20 14.5z"/></symbol>
+  </svg>
+
+  <div class="shell">
+    <!-- BARRA INSTITUCIONAL SUPERIOR -->
+    <header class="topbar">
+      <div class="brand-group">
+        <div class="utn-mark" title="Universidad Tecnológica Nacional — Facultad Regional Córdoba">
+          <svg><use href="#i-utn"/></svg>
+        </div>
+        <div class="brand-titles">
+          <span class="brand-eyebrow">UTN · Facultad Regional Córdoba · Dpto. Ing. en Sistemas de Información</span>
+          <h1>Laboratorio de Investigación de Software (LIS)</h1>
+        </div>
+      </div>
+
+      <div class="topbar-controls">
+        <div class="mode-selector-wrap" title="Estado operativo de la sala">
+          <span class="dot" id="dot-modo-lab"></span>
+          <span>Sala:</span>
+          <select id="sel-modo-lab" aria-label="Estado operativo del laboratorio" onchange="cambiarModoLab(this.value)">
+            <option value="disponible">Disponible</option>
+            <option value="reunion">En reunión</option>
+            <option value="no_molestar">Acceso restringido</option>
+          </select>
+        </div>
+
+        <div class="status-chip">
+          <span class="dot" id="dot-portero"></span>
+          <span id="lbl-portero">Nodo Portero: En línea</span>
+        </div>
+
+        <div class="status-chip">
+          <span>Inferencia</span>
+          <strong id="lbl-fps">0.0</strong>
+          <span>fps</span>
+        </div>
+
+        <div class="status-chip">
+          <span>Eventos</span>
+          <strong id="lbl-eventos">0</strong>
+        </div>
+
+        <button id="btn-tema" class="icon-btn" onclick="alternarTema()" aria-label="Alternar esquema de color" title="Alternar tema claro / oscuro">
+          <svg class="i ico-luna"><use href="#i-moon"/></svg>
+          <svg class="i ico-sol"><use href="#i-sun"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- SUB-BARRA DE NAVEGACIÓN Y PIZARRA -->
+    <div class="subbar">
+      <nav class="nav-tabs" aria-label="Secciones de la consola">
+        <button class="tab-btn active" onclick="cambiarVista('pared', this)">
+          <span class="tab-idx">01</span>Monitor de Sala
+        </button>
+        <button class="tab-btn" onclick="cambiarVista('perfiles', this)">
+          <span class="tab-idx">02</span>Padrón y Biometría
+        </button>
+        <button class="tab-btn" onclick="cambiarVista('inventario', this)">
+          <span class="tab-idx">03</span>Inventario y Pizarra
+        </button>
+        <button class="tab-btn" onclick="cambiarVista('puerta', this)">
+          <span class="tab-idx">04</span>Terminal PIN y Sensores
+        </button>
+      </nav>
+
+      <div class="aviso-cinta" id="cinta-aviso" onclick="cambiarVista('inventario', document.querySelectorAll('.tab-btn')[2])" title="Ir a pizarra de avisos">
+        <span class="aviso-tag">Pizarra</span>
+        <span id="txt-cinta-aviso">Sin avisos activos</span>
       </div>
     </div>
 
-    <div class="nav-tabs">
-      <button class="tab-btn active" onclick="cambiarVista('pared', this)">1. Tablero en Vivo</button>
-      <button class="tab-btn" onclick="cambiarVista('perfiles', this)">2. Perfiles y Biometría</button>
-      <button class="tab-btn" onclick="cambiarVista('inventario', this)">3. Inventario y Avisos</button>
-      <button class="tab-btn" onclick="cambiarVista('puerta', this)">4. Terminal PIN / Respaldo</button>
-    </div>
-
-    <div class="status-bar">
-      <div class="pill"><span class="dot" id="dot-portero"></span> <span id="lbl-portero">Portero Online</span></div>
-      <div class="pill">FPS Cámara: <strong id="lbl-fps">0.0</strong></div>
-      <div class="pill">Eventos: <strong id="lbl-eventos">0</strong></div>
-    </div>
-  </header>
-
-  <main>
-    <div id="banner-enrolamiento" class="enroll-banner">
-      <div>
-        <strong id="enroll-titulo">MODO ENROLAMIENTO FACIAL ACTIVO</strong>
-        <div id="enroll-detalle" style="font-size:0.84rem; margin-top:2px;">Mire a la cámara para capturar las 5 muestras...</div>
+    <main>
+      <div id="banner-enrolamiento" class="enroll-banner">
+        <div>
+          <strong id="enroll-titulo" style="font-family:var(--font-mono); font-size:0.78rem; letter-spacing:0.04em;">CAPTURA BIOMÉTRICA EN CURSO</strong>
+          <div id="enroll-detalle" style="font-size:0.8rem; margin-top:2px;">Posicione el rostro frente a la cámara para adquirir las 5 muestras vectoriales.</div>
+        </div>
+        <span class="badge badge-amber" id="enroll-progreso">0 / 5</span>
       </div>
-      <span class="badge badge-amber" id="enroll-progreso">0 / 5</span>
-    </div>
 
-    <!-- VISTA 1: TABLERO DE PARED EN VIVO -->
-    <section id="vista-pared" class="view active">
-      <div class="grid-dashboard">
-        <!-- Columna 1: Cámara en vivo + Fichador Arduino Grove -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">📷 Pipeline Facial MediaPipe + FaceNet (Vivo)</div>
-            <div style="display:flex; gap:6px;">
-              <button class="btn btn-outline" style="padding:5px 10px;" onclick="tocarSensorTouch()">👆 Simular TOUCH</button>
+      <!-- VISTA 01: MONITOR DE SALA EN VIVO -->
+      <section id="vista-pared" class="view active">
+        <!-- Tira consolidada de telemetría -->
+        <div class="metrics-strip">
+          <div class="metric-cell">
+            <span class="metric-label">Ocupación actual</span>
+            <div class="metric-value-row">
+              <strong class="metric-value" id="kpi-presentes">0</strong>
+              <span class="metric-sub">integrantes en sala</span>
             </div>
           </div>
 
-          <!-- Selector de Cámara y Permisos del Navegador -->
-          <div style="background:var(--panel-alt); border:1px solid var(--border); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-              <span style="font-size:0.82rem; font-weight:700; color:var(--text); display:flex; align-items:center; gap:6px;">
-                📹 Selector de Cámara:
-              </span>
-              <div style="display:flex; gap:8px; align-items:center;">
-                <span id="badge-fuente-activa" class="badge badge-blue">Fuente: Servidor</span>
-                <select id="sel-fuente-camara" style="width:auto; padding:5px 9px;" onchange="alCambiarSelectorCamara(this.value)">
-                  <option value="0">Webcam 0 (Servidor)</option>
-                  <option value="1">Webcam 1 (Servidor / USB)</option>
-                  <option value="2">Webcam 2 (Servidor)</option>
-                  <option value="droidcam">📱 DroidCam / Stream IP</option>
-                  <option value="navegador">🤳 Cámara de este Navegador</option>
-                  <option value="simulada">🧪 Modo Simulado</option>
-                </select>
+          <div class="metric-cell">
+            <span class="metric-label">Instrumental en préstamo</span>
+            <div class="metric-value-row">
+              <strong class="metric-value" id="kpi-prestamos">0</strong>
+              <span class="metric-sub">equipos fuera de armario</span>
+            </div>
+          </div>
+
+          <div class="metric-cell">
+            <span class="metric-label">Telemetría ambiental</span>
+            <div class="env-inline">
+              <span><strong id="val-temp">22.5 °C</strong></span>
+              <span><strong id="val-luz">340 lx</strong></span>
+              <span><strong id="val-ruido">38 dB</strong></span>
+            </div>
+          </div>
+
+          <div class="metric-cell">
+            <span class="metric-label">Bitácora de eventos</span>
+            <div class="metric-value-row">
+              <strong class="metric-value" id="kpi-eventos">0</strong>
+              <span class="metric-sub">registros verificados</span>
+            </div>
+          </div>
+
+          <div class="metric-cell">
+            <span class="metric-label">Tasa de procesamiento</span>
+            <div class="metric-value-row">
+              <strong class="metric-value" id="kpi-fps">0.0</strong>
+              <span class="metric-sub">fps · InceptionResnetV1</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-dashboard">
+          <!-- Columna 1: Estación de Visión + Periférico Serie -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">CAM</span>
+                <span class="panel-title">Estación de Visión · MediaPipe + FaceNet</span>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="tocarSensorTouch()">Disparar sensor táctil</button>
+            </div>
+
+            <div class="panel-body">
+              <!-- Selector de fuente de video -->
+              <div class="cam-toolbar">
+                <div class="cam-toolbar-row">
+                  <span class="cam-toolbar-label">Entrada de video</span>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span id="badge-fuente-activa" class="badge badge-neutral">LOCAL #0</span>
+                    <select id="sel-fuente-camara" style="width:auto; padding:4px 8px; font-size:0.77rem;" onchange="alCambiarSelectorCamara(this.value)">
+                      <option value="0">Cámara 0 (Servidor local)</option>
+                      <option value="1">Cámara 1 (Puerto USB)</option>
+                      <option value="2">Cámara 2 (Auxiliar)</option>
+                      <option value="droidcam">Stream IP / DroidCam</option>
+                      <option value="navegador">Cámara de este navegador</option>
+                      <option value="simulada">Señal sintética de prueba</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Configuración Stream IP -->
+                <div id="panel-droidcam" style="display:none; gap:8px; align-items:center; padding-top:4px; border-top:1px solid var(--border);">
+                  <input id="inp-url-droidcam" type="text" placeholder="http://192.168.100.18:4747/video" value="http://192.168.100.18:4747/video" style="flex:1; padding:5px 8px; font-family:var(--font-mono); font-size:0.76rem;" />
+                  <button class="btn btn-sm" onclick="conectarDroidcam()">Conectar stream</button>
+                </div>
+
+                <!-- Configuración Cámara del Navegador -->
+                <div id="panel-camara-navegador" style="display:none; flex-direction:column; gap:6px; padding-top:4px; border-top:1px solid var(--border);">
+                  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                    <button id="btn-activar-webcam" class="btn btn-green btn-sm" onclick="activarCamaraNavegador()">Iniciar transmisión local</button>
+                    <select id="sel-dispositivos-nav" style="display:none; flex:1; padding:4px 8px; font-size:0.76rem;" onchange="cambiarDispositivoNav(this.value)"></select>
+                    <button id="btn-detener-webcam" class="btn btn-red btn-sm" style="display:none;" onclick="detenerCamaraNavegador()">Detener</button>
+                  </div>
+                  <div id="lbl-estado-webcam-nav" style="font-size:0.74rem; color:var(--muted);">
+                    Transmite cuadros JPEG desde este dispositivo hacia el motor de inferencia local.
+                  </div>
+                </div>
+              </div>
+
+              <div class="video-box">
+                <img id="img-camara" src="/video_feed" alt="Flujo de video del módulo de visión" />
+                <div class="video-Overlay-meta">
+                  <span>BLAZEFACE + VGGFACE2 (512-D)</span>
+                  <span>GESTO: PALMA (INGRESO) / PULGAR (EGRESO)</span>
+                </div>
+              </div>
+
+              <video id="video-local-capture" autoplay playsinline muted style="display:none;"></video>
+              <canvas id="canvas-local-capture" width="640" height="480" style="display:none;"></canvas>
+
+              <!-- Módulo Serie Arduino UNO -->
+              <div class="serial-module">
+                <div class="serial-meta-bar">
+                  <span>Periférico Serie · Arduino UNO (115200 bps)</span>
+                  <div class="dip-leds">
+                    <span class="led-indicator"><span id="led-verde" class="led-bulb"></span>VERDE</span>
+                    <span class="led-indicator"><span id="led-azul" class="led-bulb"></span>AZUL</span>
+                    <span class="led-indicator"><span id="led-rojo" class="led-bulb"></span>ROJO</span>
+                  </div>
+                </div>
+                <div id="lcd-screen" class="lcd-readout">
+                  <div class="lcd-lines">
+                    <div id="lcd-l1" class="lcd-line">UTN FRC - LIS   </div>
+                    <div id="lcd-l2" class="lcd-line">EN ESPERA       </div>
+                  </div>
+                  <div class="lcd-spec-tag">
+                    GROVE I²C<br />LCD 16×2
+                  </div>
+                </div>
               </div>
             </div>
-
-            <!-- Panel DroidCam IP -->
-            <div id="panel-droidcam" style="display:none; gap:8px; align-items:center;">
-              <input id="inp-url-droidcam" type="text" placeholder="http://192.168.100.18:4747/video" value="http://192.168.100.18:4747/video" style="flex:1; padding:6px 9px;" />
-              <button class="btn btn-green" style="padding:6px 12px;" onclick="conectarDroidcam()">Conectar IP</button>
-            </div>
-
-            <!-- Panel Cámara de este Navegador (getUserMedia con permisos) -->
-            <div id="panel-camara-navegador" style="display:none; flex-direction:column; gap:8px;">
-              <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                <button id="btn-activar-webcam" class="btn btn-green" onclick="activarCamaraNavegador()">📹 Activar y Otorgar Permiso</button>
-                <select id="sel-dispositivos-nav" style="display:none; flex:1; padding:6px 9px;" onchange="cambiarDispositivoNav(this.value)"></select>
-                <button id="btn-detener-webcam" class="btn btn-red" style="display:none; padding:6px 12px;" onclick="detenerCamaraNavegador()">Detener</button>
-              </div>
-              <div id="lbl-estado-webcam-nav" style="font-size:0.78rem; color:var(--muted);">
-                💡 Usá la cámara frontal o trasera de tu celular/tablet transmitiendo directamente al motor de FaceNet.
-              </div>
-            </div>
           </div>
 
-          <div class="video-box">
-            <img id="img-camara" src="/video_feed" alt="Stream de cámara en vivo" />
-          </div>
+          <!-- Columna 2: Nómina de Presencia y Préstamos -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">SALA</span>
+                <span class="panel-title">Nómina de Presencia Activa</span>
+              </div>
+              <span class="badge badge-green"><span id="cnt-presentes">0</span>&nbsp;EN SALA</span>
+            </div>
 
-          <video id="video-local-capture" autoplay playsinline muted style="display:none;"></video>
-          <canvas id="canvas-local-capture" width="640" height="480" style="display:none;"></canvas>
+            <div class="panel-body">
+              <div id="lista-presentes" class="presence-list"></div>
 
-          <div class="grove-housing">
-            <div class="leds-row">
-              <span>FICHADOR ARDUINO UNO — GROVE LCD RGB 16×2</span>
-              <div class="dip-leds">
-                <span class="led-indicator"><span id="led-verde" class="led-bulb"></span>Verde</span>
-                <span class="led-indicator"><span id="led-azul" class="led-bulb"></span>Azul</span>
-                <span class="led-indicator"><span id="led-rojo" class="led-bulb"></span>Rojo</span>
+              <div class="section-divider">
+                <div class="subsection-title">
+                  <span>Instrumental retirado del armario</span>
+                  <button class="btn btn-outline btn-sm" onclick="cambiarVista('inventario', document.querySelectorAll('.tab-btn')[2])">Gestionar inventario</button>
+                </div>
+                <div id="resumen-prestamos" style="display:flex; flex-direction:column; gap:6px;"></div>
               </div>
             </div>
-            <div id="lcd-screen" class="lcd-screen">
-              <div id="lcd-l1" class="lcd-line">LIS UTN-FRC     </div>
-              <div id="lcd-l2" class="lcd-line">SISTEMA ACTIVO  </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Columna 2: Quién está en el LIS ahora + Estado del Lab -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">🟢 Presentes en el Laboratorio (<span id="cnt-presentes">0</span>)</div>
-            <select id="sel-modo-lab" style="width:auto; padding:5px 10px;" onchange="cambiarModoLab(this.value)">
-              <option value="disponible">🟢 Lab Disponible</option>
-              <option value="reunion">🟡 En Reunión</option>
-              <option value="no_molestar">🔴 No Molestar</option>
-            </select>
           </div>
 
-          <div class="env-grid">
-            <div class="env-stat"><span>Temperatura</span><strong id="val-temp">22.5 °C</strong></div>
-            <div class="env-stat"><span>Iluminación</span><strong id="val-luz">340 lux</strong></div>
-            <div class="env-stat"><span>Nivel Ruido</span><strong id="val-ruido">38 dB</strong></div>
-          </div>
-
-          <div id="lista-presentes" class="presence-list"></div>
-
-          <div class="card-header" style="margin-top:6px;">
-            <div class="card-title">📦 Equipos Prestados Ahora</div>
-          </div>
-          <div id="resumen-prestamos" style="display:flex; flex-direction:column; gap:8px;"></div>
-        </div>
-
-        <!-- Columna 3: Event Sourcing Stream -->
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">⚡ Registro Inmutable de Eventos (Append-Only)</div>
-          </div>
-          <div id="lista-eventos" class="events-feed"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- VISTA 2: GESTIÓN DE PERFILES Y ENROLAMIENTO BIOMÉTRICO -->
-    <section id="vista-perfiles" class="view">
-      <div class="grid-dashboard" style="grid-template-columns: 1fr 1.6fr;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">➕ Alta / Actualización de Perfil (Sección 13)</div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            <div>
-              <label style="font-size:0.8rem; color:var(--muted);">Nombre y Apellido</label>
-              <input id="inp-nombre" type="text" placeholder="Ej: Jonás..." />
-            </div>
-            <div class="form-grid">
-              <div>
-                <label style="font-size:0.8rem; color:var(--muted);">Rol en el Lab</label>
-                <select id="inp-rol">
-                  <option value="Integrante">Integrante</option>
-                  <option value="Investigador">Investigador</option>
-                  <option value="Administrador">Administrador</option>
-                </select>
+          <!-- Columna 3: Bitácora Inmutable de Eventos -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">LOG</span>
+                <span class="panel-title">Bitácora de Eventos</span>
               </div>
-              <div>
-                <label style="font-size:0.8rem; color:var(--muted);">PIN de Respaldo (4 dígitos)</label>
-                <input id="inp-pin" type="password" maxlength="6" value="1234" />
+              <span class="badge badge-neutral">JSONL · APPEND-ONLY</span>
+            </div>
+
+            <div class="panel-body">
+              <div id="lista-eventos" class="events-feed"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VISTA 02: PADRÓN E IDENTIDAD BIOMÉTRICA -->
+      <section id="vista-perfiles" class="view">
+        <div class="grid-dashboard" style="grid-template-columns: 1fr 1.65fr;">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">ALTA</span>
+                <span class="panel-title">Registro y Actualización de Integrante</span>
               </div>
             </div>
-            <label style="display:flex; align-items:center; gap:8px; font-size:0.84rem; cursor:pointer;">
-              <input id="inp-consentimiento" type="checkbox" checked style="width:auto;" />
-              Presta consentimiento informado para almacenar vectores biométricos (nunca fotos).
-            </label>
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-              <button class="btn btn-green" onclick="guardarPerfil(true)">📷 Guardar y Capturar Rostro (5 muestras)</button>
-              <button class="btn btn-outline" onclick="guardarPerfil(false)">Guardar Solo Perfil (Usar PIN)</button>
+            <div class="panel-body">
+              <div class="field-group">
+                <label class="field-label" for="inp-nombre">Nombre y Apellido</label>
+                <input id="inp-nombre" type="text" placeholder="Ej.: Ing. Juan Pérez / Jonás..." />
+              </div>
+              <div class="form-grid">
+                <div class="field-group">
+                  <label class="field-label" for="inp-rol">Función en el laboratorio</label>
+                  <select id="inp-rol">
+                    <option value="Integrante">Integrante / Becario</option>
+                    <option value="Investigador">Docente Investigador</option>
+                    <option value="Administrador">Coordinador / Admin</option>
+                  </select>
+                </div>
+                <div class="field-group">
+                  <label class="field-label" for="inp-pin">PIN de respaldo (4 a 6 dígitos)</label>
+                  <input id="inp-pin" type="password" maxlength="6" value="1234" />
+                </div>
+              </div>
+              <label style="display:flex; align-items:flex-start; gap:8px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer; padding:4px 0;">
+                <input id="inp-consentimiento" type="checkbox" checked style="width:auto; margin-top:2px;" />
+                <span>El integrante presta conformidad para el almacenamiento local de descriptores vectoriales (512-D), sin retención de imágenes fotográficas.</span>
+              </label>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; padding-top:4px;">
+                <button class="btn" onclick="guardarPerfil(true)">Guardar y capturar 5 muestras faciales</button>
+                <button class="btn btn-outline" onclick="guardarPerfil(false)">Registrar solo con PIN</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">PADRÓN</span>
+                <span class="panel-title">Nómina de Integrantes y Estado de Vectores</span>
+              </div>
+            </div>
+            <div class="panel-body" style="padding:0;">
+              <div style="overflow-x:auto;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Integrante</th>
+                      <th>Rol / Proyecto</th>
+                      <th>Muestras FaceNet</th>
+                      <th>Estado Actual</th>
+                      <th>Operaciones</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tabla-perfiles"></tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
+      </section>
 
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">👥 Padrón de Integrantes y Muestras Biométricas en SQLite</div>
-          </div>
-          <div style="overflow-x:auto;">
-            <table>
-              <thead>
-                <tr>
-                  <th>Integrante</th>
-                  <th>Rol / Proyecto</th>
-                  <th>Muestras FaceNet</th>
-                  <th>Estado Hoy</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody id="tabla-perfiles"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- VISTA 3: INVENTARIO Y AVISOS -->
-    <section id="vista-inventario" class="view">
-      <div class="grid-dashboard" style="grid-template-columns: 1.2fr 1fr;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">🧰 Inventario del Laboratorio ("¿Quién tiene qué?")</div>
-          </div>
-          <div class="form-grid">
-            <select id="sel-persona-inv"></select>
-            <select id="sel-objeto-inv"></select>
-            <button class="btn btn-amber" onclick="registrarMovimientoInventario('retiro')">Registrar Retiro</button>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Equipo / Kit</th>
-                <th>Estado</th>
-                <th>Responsable Actual</th>
-                <th>Acción</th>
-              </tr>
-            </thead>
-            <tbody id="tabla-inventario"></tbody>
-          </table>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">📌 Tablero de Avisos del Pizarrón</div>
-          </div>
-          <div class="form-grid">
-            <input id="inp-aviso-autor" type="text" placeholder="Dueño del aviso" />
-            <input id="inp-aviso-venc" type="date" />
-          </div>
-          <div style="display:flex; gap:8px;">
-            <input id="inp-aviso-texto" type="text" placeholder="Escribe un aviso para el laboratorio..." />
-            <button class="btn" onclick="crearAviso()">Publicar</button>
-          </div>
-          <div id="lista-avisos" class="presence-list"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- VISTA 4: TERMINAL DE PUERTA / CAJA FUERTE (RESPALDO SIN CAMARA) -->
-    <section id="vista-puerta" class="view">
-      <div class="grid-dashboard" style="grid-template-columns: 1fr 1fr;">
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">🔐 Respaldo Nivel 2 y 3: Fichaje por PIN / Caja Fuerte Galileo</div>
-          </div>
-          <p style="font-size:0.85rem; color:var(--muted);">
-            Permite registrar entrada o salida cuando el servidor de visión está apagado o si la persona prefiere no utilizar reconocimiento facial (Sección 7 y 13).
-          </p>
-          <div class="form-grid">
-            <select id="sel-persona-pin"></select>
-            <input id="inp-auth-pin" type="password" placeholder="Ingrese su PIN" />
-            <select id="sel-origen-pin">
-              <option value="tablet-puerta">Origen: Tablet de Puerta (PIN)</option>
-              <option value="caja-fuerte">Origen: Caja Fuerte Galileo (Rotary)</option>
-            </select>
-          </div>
-          <div style="display:flex; gap:12px;">
-            <button class="btn btn-green" style="flex:1; padding:12px;" onclick="ficharConPin('entrada')">🟢 REGISTRAR ENTRADA</button>
-            <button class="btn btn-blue" style="flex:1; padding:12px;" onclick="ficharConPin('salida')">🔵 REGISTRAR SALIDA</button>
-          </div>
-          <div id="msg-pin-res" style="font-size:0.86rem; font-weight:600;"></div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">🌡️ Simulador de Torre de Estado (Sensores Físicos)</div>
-          </div>
-          <div class="form-grid">
-            <div>
-              <label style="font-size:0.8rem; color:var(--muted);">Temperatura (°C)</label>
-              <input id="sim-temp" type="number" step="0.5" value="23.0" />
+      <!-- VISTA 03: INVENTARIO Y PIZARRA DE AVISOS -->
+      <section id="vista-inventario" class="view">
+        <div class="grid-dashboard" style="grid-template-columns: 1.25fr 1fr;">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">INV</span>
+                <span class="panel-title">Control de Instrumental y Kits de Laboratorio</span>
+              </div>
             </div>
-            <div>
-              <label style="font-size:0.8rem; color:var(--muted);">Luz Ambiente (lux)</label>
-              <input id="sim-luz" type="number" step="10" value="350" />
-            </div>
-            <div>
-              <label style="font-size:0.8rem; color:var(--muted);">Nivel Sonido (dB)</label>
-              <input id="sim-sonido" type="number" step="1" value="40" />
+            <div class="panel-body">
+              <div class="form-grid" style="align-items:end;">
+                <div class="field-group">
+                  <label class="field-label" for="sel-persona-inv">Responsable</label>
+                  <select id="sel-persona-inv"></select>
+                </div>
+                <div class="field-group">
+                  <label class="field-label" for="sel-objeto-inv">Equipo / Kit</label>
+                  <select id="sel-objeto-inv"></select>
+                </div>
+                <button class="btn" onclick="registrarMovimientoInventario('retiro')">Registrar préstamo</button>
+              </div>
+              <div style="overflow-x:auto; border:1px solid var(--border); border-radius:4px;">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Ítem / Categoría</th>
+                      <th>Disponibilidad</th>
+                      <th>Responsable actual</th>
+                      <th>Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tabla-inventario"></tbody>
+                </table>
+              </div>
             </div>
           </div>
-          <button class="btn btn-outline" onclick="publicarAmbiente()">Emitir Evento de Sensores al Portero</button>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">AVISOS</span>
+                <span class="panel-title">Pizarra Operativa del Laboratorio</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="form-grid">
+                <div class="field-group">
+                  <label class="field-label" for="inp-aviso-autor">Autor / Responsable</label>
+                  <input id="inp-aviso-autor" type="text" placeholder="Nombre del integrante" />
+                </div>
+                <div class="field-group">
+                  <label class="field-label" for="inp-aviso-venc">Vigencia hasta</label>
+                  <input id="inp-aviso-venc" type="date" />
+                </div>
+              </div>
+              <div style="display:flex; gap:8px;">
+                <input id="inp-aviso-texto" type="text" placeholder="Detalle del aviso técnico o recordatorio..." />
+                <button class="btn" onclick="crearAviso()">Publicar aviso</button>
+              </div>
+              <div id="lista-avisos" class="presence-list"></div>
+            </div>
+          </div>
         </div>
-      </div>
-    </section>
-  </main>
+      </section>
+
+      <!-- VISTA 04: TERMINAL PIN Y SENSORES DE SALA -->
+      <section id="vista-puerta" class="view">
+        <div class="grid-dashboard" style="grid-template-columns: 1fr 1fr;">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">PIN</span>
+                <span class="panel-title">Terminal de Acceso Manual (Respaldo sin Cámara)</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p style="font-size:0.8rem; color:var(--text-secondary);">
+                Permite asentar ingresos y egresos mediante código de identificación personal cuando el servidor de visión se encuentra apagado o por preferencia del integrante.
+              </p>
+              <div class="form-grid">
+                <div class="field-group">
+                  <label class="field-label" for="sel-persona-pin">Integrante</label>
+                  <select id="sel-persona-pin"></select>
+                </div>
+                <div class="field-group">
+                  <label class="field-label" for="inp-auth-pin">Código PIN</label>
+                  <input id="inp-auth-pin" type="password" placeholder="••••" />
+                </div>
+                <div class="field-group">
+                  <label class="field-label" for="sel-origen-pin">Terminal de origen</label>
+                  <select id="sel-origen-pin">
+                    <option value="tablet-puerta">Tablet de acceso (Puerta)</option>
+                    <option value="caja-fuerte">Nodo Intel Galileo (Encoder)</option>
+                  </select>
+                </div>
+              </div>
+              <div style="display:flex; gap:10px; padding-top:4px;">
+                <button class="btn btn-green" style="flex:1; padding:9px;" onclick="ficharConPin('entrada')">Registrar ingreso</button>
+                <button class="btn btn-outline" style="flex:1; padding:9px;" onclick="ficharConPin('salida')">Registrar egreso</button>
+              </div>
+              <div id="msg-pin-res" style="font-family:var(--font-mono); font-size:0.78rem; font-weight:500;"></div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">AMB</span>
+                <span class="panel-title">Inyección de Telemetría Ambiental (Nodo Torre de Estado)</span>
+              </div>
+            </div>
+            <div class="panel-body">
+              <p style="font-size:0.8rem; color:var(--text-secondary);">
+                Emula el envío periódico de lecturas físicas desde el nodo Arduino UNO + Grove hacia el servicio Portero.
+              </p>
+              <div class="form-grid">
+                <div class="field-group">
+                  <label class="field-label" for="sim-temp">Temperatura (°C)</label>
+                  <input id="sim-temp" type="number" step="0.5" value="23.0" />
+                </div>
+                <div class="field-group">
+                  <label class="field-label" for="sim-luz">Iluminancia (lx)</label>
+                  <input id="sim-luz" type="number" step="10" value="350" />
+                </div>
+                <div class="field-group">
+                  <label class="field-label" for="sim-sonido">Nivel acústico (dB)</label>
+                  <input id="sim-sonido" type="number" step="1" value="40" />
+                </div>
+              </div>
+              <div style="padding-top:4px;">
+                <button class="btn btn-outline" onclick="publicarAmbiente()">Transmitir lectura al Portero</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
 
   <script>
     let ultimoBeepTs = "";
@@ -635,6 +1384,14 @@
     let streamLocalWebcam = null;
     let intervaloSubidaWebcam = null;
     let subiendoCuadro = false;
+
+    function obtenerIniciales(nombre) {
+      const partes = String(nombre || 'LIS').trim().split(/[\s_-]+/).filter(Boolean);
+      if (partes.length >= 2) {
+        return (partes[0][0] + partes[1][0]).toUpperCase();
+      }
+      return String(nombre || 'LI').slice(0, 2).toUpperCase();
+    }
 
     async function alCambiarSelectorCamara(val) {
       const pnlDroid = document.getElementById('panel-droidcam');
@@ -651,7 +1408,7 @@
 
     async function conectarDroidcam() {
       const url = document.getElementById('inp-url-droidcam').value.trim();
-      if (!url) { alert('Ingrese la URL de DroidCam o Stream IP.'); return; }
+      if (!url) { alert('Ingrese la dirección HTTP/RTSP del stream de video.'); return; }
       if (streamLocalWebcam) detenerCamaraNavegador(false);
       await apiPost('/camara/configurar', { fuente: url });
       actualizarEstado();
@@ -664,7 +1421,7 @@
       const lblEstado = document.getElementById('lbl-estado-webcam-nav');
 
       try {
-        lblEstado.textContent = 'Solicitando permisos de cámara al navegador...';
+        lblEstado.textContent = 'Solicitando acceso al dispositivo de video del navegador...';
         if (streamLocalWebcam) {
           streamLocalWebcam.getTracks().forEach(t => t.stop());
         }
@@ -683,7 +1440,7 @@
           const devices = await navigator.mediaDevices.enumerateDevices();
           const videoDevices = devices.filter(d => d.kind === 'videoinput');
           if (videoDevices.length > 0) {
-            selDisp.innerHTML = videoDevices.map((d, i) => `<option value="${d.deviceId}">${d.label || 'Cámara ' + (i + 1)}</option>`).join('');
+            selDisp.innerHTML = videoDevices.map((d, i) => `<option value="${d.deviceId}">${d.label || 'Dispositivo ' + (i + 1)}</option>`).join('');
             if (videoDevices.length > 1) {
               selDisp.style.display = 'inline-block';
               if (deviceId) selDisp.value = deviceId;
@@ -693,8 +1450,8 @@
 
         btnActivar.style.display = 'none';
         btnDetener.style.display = 'inline-block';
-        lblEstado.style.color = '#34d399';
-        lblEstado.textContent = '🟢 Cámara del navegador activa: transmitiendo fotogramas al pipeline de LIS...';
+        lblEstado.style.color = 'var(--ok)';
+        lblEstado.textContent = 'Transmisión activa hacia el pipeline de reconocimiento.';
 
         await apiPost('/camara/configurar', { fuente: 'navegador' });
 
@@ -721,9 +1478,9 @@
 
       } catch (err) {
         console.error('Error al acceder a la cámara:', err);
-        lblEstado.style.color = '#f87171';
-        lblEstado.textContent = '❌ Permiso denegado o error: ' + (err.message || 'No se pudo acceder a la cámara.');
-        alert('No se pudo acceder a la cámara. Asegúrese de otorgar permisos en su navegador.');
+        lblEstado.style.color = 'var(--bad)';
+        lblEstado.textContent = 'Permiso denegado o dispositivo no disponible: ' + (err.message || '');
+        alert('No se pudo inicializar la cámara del navegador. Verifique los permisos del sitio.');
       }
     }
 
@@ -745,7 +1502,7 @@
       document.getElementById('sel-dispositivos-nav').style.display = 'none';
       const lbl = document.getElementById('lbl-estado-webcam-nav');
       lbl.style.color = 'var(--muted)';
-      lbl.textContent = 'Cámara del navegador detenida.';
+      lbl.textContent = 'Transmisión desde navegador detenida.';
       if (notificarServidor) {
         await apiPost('/camara/configurar', { fuente: '0' });
         document.getElementById('sel-fuente-camara').value = '0';
@@ -759,6 +1516,13 @@
       if (btn) btn.classList.add('active');
     }
 
+    function alternarTema() {
+      const actual = document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light';
+      const nuevo = actual === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', nuevo);
+      try { localStorage.setItem('lis-tema', nuevo); } catch (e) {}
+    }
+
     function emitirSonidoBeep(tipo) {
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -767,9 +1531,9 @@
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.frequency.value = tipo === 'err' ? 240 : 880;
-        gain.gain.value = 0.08;
+        gain.gain.value = 0.06;
         osc.start();
-        setTimeout(() => { osc.stop(); ctx.close(); }, tipo === 'err' ? 280 : 130);
+        setTimeout(() => { osc.stop(); ctx.close(); }, tipo === 'err' ? 260 : 120);
       } catch (e) {}
     }
 
@@ -815,11 +1579,11 @@
       const rol = document.getElementById('inp-rol').value;
       const pin = document.getElementById('inp-pin').value.trim() || '1234';
       const consentimiento = document.getElementById('inp-consentimiento').checked;
-      if (!nombre) { alert('Ingrese el nombre del integrante.'); return; }
+      if (!nombre) { alert('Indique el nombre y apellido del integrante.'); return; }
       const res = await apiPost('/perfiles', {
         nombre, rol, pin, consentimiento, enrolar_en_camara: enrolarEnCamara
       });
-      if (!res.ok) { alert(res.error || 'Error al guardar perfil'); return; }
+      if (!res.ok) { alert(res.error || 'Error al registrar el perfil'); return; }
       document.getElementById('inp-nombre').value = '';
       if (enrolarEnCamara) {
         cambiarVista('pared', document.querySelectorAll('.tab-btn')[0]);
@@ -834,7 +1598,7 @@
     }
 
     async function eliminarPerfil(nombre) {
-      if (!confirm(`¿Seguro que desea dar de baja a ${nombre} y borrar sus vectores biométricos?`)) return;
+      if (!confirm(`¿Confirma la baja de ${nombre} y la eliminación de sus vectores biométricos?`)) return;
       await apiPost('/perfiles/eliminar', { nombre });
       actualizarEstado();
     }
@@ -857,12 +1621,12 @@
       const box = document.getElementById('msg-pin-res');
       const res = await apiPost('/auth/pin', { persona_id, pin, tipo, origen, metodo: 'pin' });
       if (res.ok) {
-        box.style.color = '#34d399';
-        box.textContent = `✔ ${tipo.toUpperCase()} registrada correctamente para ${res.perfil.nombre}`;
+        box.style.color = 'var(--ok)';
+        box.textContent = `[OK] ${tipo.toUpperCase()} registrada para ${res.perfil.nombre}`;
         document.getElementById('inp-auth-pin').value = '';
       } else {
-        box.style.color = '#f87171';
-        box.textContent = `✖ ${res.error}`;
+        box.style.color = 'var(--bad)';
+        box.textContent = `[ERROR] ${res.error}`;
       }
       actualizarEstado();
     }
@@ -883,7 +1647,7 @@
     }
 
     async function crearAviso() {
-      const autor = document.getElementById('inp-aviso-autor').value.trim() || 'LIS';
+      const autor = document.getElementById('inp-aviso-autor').value.trim() || 'Coordinación LIS';
       const texto = document.getElementById('inp-aviso-texto').value.trim();
       const vencimiento = document.getElementById('inp-aviso-venc').value;
       if (!texto) return;
@@ -916,6 +1680,36 @@
         estadoGlobal = st;
 
         document.getElementById('lbl-eventos').textContent = st.total_eventos_validos || 0;
+        document.getElementById('kpi-eventos').textContent = st.total_eventos_validos || 0;
+        document.getElementById('kpi-fps').textContent = (st.camara_runtime?.fps || 0).toFixed(1);
+        document.getElementById('kpi-presentes').textContent = Object.keys(st.presentes || {}).length;
+        document.getElementById('kpi-prestamos').textContent = Object.keys(st.prestamos || {}).length;
+        document.getElementById('lbl-portero').textContent = 'Nodo Portero: En línea';
+        document.getElementById('dot-portero').classList.remove('off');
+
+        // Estado modo laboratorio
+        const modoLab = st.estado_lab || 'disponible';
+        const selModo = document.getElementById('sel-modo-lab');
+        if (selModo && document.activeElement !== selModo) {
+          selModo.value = modoLab;
+        }
+        const dotModo = document.getElementById('dot-modo-lab');
+        if (dotModo) {
+          dotModo.className = 'dot' + (modoLab === 'reunion' ? ' warn' : (modoLab === 'no_molestar' ? ' off' : ''));
+        }
+
+        // Cinta de avisos
+        const avisoTop = (st.avisos || [])[0];
+        const cintaEl = document.getElementById('cinta-aviso');
+        const txtCinta = document.getElementById('txt-cinta-aviso');
+        if (avisoTop) {
+          cintaEl.classList.add('has-notice');
+          txtCinta.textContent = `${avisoTop.texto} (${avisoTop.autor})`;
+        } else {
+          cintaEl.classList.remove('has-notice');
+          txtCinta.textContent = 'Sin avisos activos';
+        }
+
         document.getElementById('lbl-fps').textContent = (st.camara_runtime?.fps || 0).toFixed(1);
 
         const camSt = st.camara_runtime || {};
@@ -924,9 +1718,9 @@
         if (badge) {
           const esNav = (fuenteActiva === 'navegador');
           const esIp = fuenteActiva.startsWith('http');
-          const textoBadge = esNav ? '🤳 Navegador' : (esIp ? '📱 DroidCam IP' : `📷 Fuente: ${fuenteActiva}`);
+          const textoBadge = esNav ? 'NAVEGADOR' : (esIp ? 'STREAM IP' : `LOCAL #${fuenteActiva}`);
           badge.textContent = textoBadge;
-          badge.className = 'badge ' + (esNav ? 'badge-green' : (esIp ? 'badge-amber' : 'badge-blue'));
+          badge.className = 'badge ' + (esNav ? 'badge-green' : (esIp ? 'badge-amber' : 'badge-neutral'));
         }
 
         // Banner de enrolamiento
@@ -940,17 +1734,20 @@
           banner.classList.remove('show');
         }
 
-        // Grove LCD
+        // Periférico Serie (Grove LCD 16x2)
         const lcd = st.fichador || {};
         if (lcd.linea1 !== undefined) {
-          document.getElementById('lcd-l1').textContent = (lcd.linea1 || '').padEnd(16, ' ').slice(0, 16);
-          document.getElementById('lcd-l2').textContent = (lcd.linea2 || '').padEnd(16, ' ').slice(0, 16);
+          let l1 = String(lcd.linea1 || '').trim();
+          let l2 = String(lcd.linea2 || '').trim();
+          if (l1 === 'LIS UTN-FRC') l1 = 'UTN FRC - LIS';
+          if (l2 === 'SISTEMA ACTIVO') l2 = 'EN ESPERA';
+          document.getElementById('lcd-l1').textContent = l1.padEnd(16, ' ').slice(0, 16);
+          document.getElementById('lcd-l2').textContent = l2.padEnd(16, ' ').slice(0, 16);
         }
         if (Array.isArray(lcd.rgb)) {
           const [cr, cg, cb] = lcd.rgb;
           const scr = document.getElementById('lcd-screen');
-          scr.style.backgroundColor = `rgb(${cr}, ${cg}, ${cb})`;
-          scr.style.boxShadow = `inset 0 2px 8px rgba(0,0,0,0.45), 0 0 20px rgba(${cr},${cg},${cb},0.45)`;
+          scr.style.borderLeftColor = `rgb(${cr}, ${cg}, ${cb})`;
         }
         const leds = lcd.leds || {};
         document.getElementById('led-verde').className = 'led-bulb ' + (leds.verde ? 'on-verde' : '');
@@ -962,68 +1759,80 @@
           ultimoBeepTs = lcd.ultimo_beep.t;
         }
 
-        // Ambiente
+        // Telemetría ambiental
         const amb = st.ambiente || {};
         document.getElementById('val-temp').textContent = `${amb.temperatura ?? 22.5} °C`;
-        document.getElementById('val-luz').textContent = `${amb.luz ?? 340} lux`;
-        document.getElementById('val-ruido').textContent = `${amb.sonido ?? 38} dB`;
+        document.getElementById('val-luz').textContent = `${amb.luz ?? amb.lux ?? 340} lx`;
+        document.getElementById('val-ruido').textContent = `${amb.sonido ?? amb.ruido ?? 38} dB`;
 
-        // Presentes
+        // Nómina de presentes
         const presentesArr = Object.values(st.presentes || {});
         document.getElementById('cnt-presentes').textContent = presentesArr.length;
         const contPres = document.getElementById('lista-presentes');
         if (presentesArr.length === 0) {
-          contPres.innerHTML = `<div style="color:var(--muted); font-size:0.85rem; padding:12px;">No hay integrantes registrados dentro del laboratorio en este momento.</div>`;
+          contPres.innerHTML = `<div class="empty-state">Sin integrantes registrados en sala en este momento.</div>`;
         } else {
           contPres.innerHTML = presentesArr.map(p => `
-            <div class="person-card">
-              <div class="person-info">
-                <h3>${p.nombre} <span class="badge badge-green">DENTRO</span></h3>
-                <div class="person-meta">
-                  <span>Método: <strong>${p.metodo}</strong></span>
-                  ${p.distancia !== null && p.distancia !== undefined ? `<span>d = <strong>${Number(p.distancia).toFixed(2)}</strong></span>` : ''}
-                  <span>Hoy: <strong>${p.minutos_hoy} min</strong> (${p.ingresos_hoy} ing.)</span>
+            <div class="person-row">
+              <div class="person-main">
+                <div class="avatar-mono">${obtenerIniciales(p.nombre)}</div>
+                <div class="person-info">
+                  <h3>${p.nombre} <span class="badge badge-green">PRESENTE</span></h3>
+                  <div class="person-meta">
+                    <span>vía <strong>${p.metodo}</strong></span>
+                    ${p.distancia !== null && p.distancia !== undefined ? `<span>d=<strong>${Number(p.distancia).toFixed(2)}</strong></span>` : ''}
+                    <span>acumulado: <strong>${p.minutos_hoy} min</strong> (${p.ingresos_hoy} ing.)</span>
+                  </div>
                 </div>
               </div>
-              <button class="btn btn-outline" onclick="registrarAccesoManual('${p.nombre}', 'salida')">Registrar Salida</button>
+              <button class="btn btn-outline btn-sm" onclick="registrarAccesoManual('${p.nombre}', 'salida')">Registrar egreso</button>
             </div>
           `).join('');
         }
 
-        // Préstamos activos en resumen
+        // Préstamos activos
         const prestamosObj = st.prestamos || {};
         const prestamosArr = Object.values(prestamosObj);
         const contPrest = document.getElementById('resumen-prestamos');
         if (prestamosArr.length === 0) {
-          contPrest.innerHTML = `<div style="color:var(--muted); font-size:0.82rem;">Todos los kits y placas se encuentran en el armario.</div>`;
+          contPrest.innerHTML = `<div class="empty-state">Todo el instrumental se encuentra disponible en el armario.</div>`;
         } else {
           contPrest.innerHTML = prestamosArr.map(pr => `
-            <div class="event-row">
-              <div><strong>${pr.nombre_objeto}</strong> → en poder de <span class="badge badge-amber">${pr.persona_id}</span></div>
-              <button class="btn btn-outline" style="padding:4px 9px;" onclick="registrarMovimientoInventario('devolucion', '${pr.objeto_id}')">Devolver</button>
+            <div class="loan-row">
+              <div>
+                <strong>${pr.nombre_objeto}</strong>
+                <span style="color:var(--muted); margin:0 6px;">·</span>
+                <span class="badge badge-amber">${pr.persona_id}</span>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="registrarMovimientoInventario('devolucion', '${pr.objeto_id}')">Registrar devolución</button>
             </div>
           `).join('');
         }
 
-        // Flujo de eventos
+        // Bitácora de eventos
         const evs = st.ultimos_eventos || [];
-        document.getElementById('lista-eventos').innerHTML = evs.map(e => {
-          const badgeClass = e.tipo === 'entrada' ? 'badge-green' : (e.tipo === 'salida' ? 'badge-blue' : 'badge-amber');
-          const hora = (e.t || '').slice(11, 19);
-          const distTxt = e.distancia !== null && e.distancia !== undefined ? ` · d=${Number(e.distancia).toFixed(2)}` : '';
-          return `
-            <div class="event-row">
-              <div>
+        const contEvs = document.getElementById('lista-eventos');
+        if (evs.length === 0) {
+          contEvs.innerHTML = `<div class="empty-state" style="border:0;">Sin eventos registrados en la bitácora.</div>`;
+        } else {
+          contEvs.innerHTML = evs.map(e => {
+            const badgeClass = e.tipo === 'entrada'
+              ? 'badge-green'
+              : (e.tipo === 'salida' ? 'badge-blue' : (e.tipo === 'retiro' ? 'badge-amber' : 'badge-neutral'));
+            const hora = (e.t || '').slice(11, 19) || '--:--:--';
+            const distTxt = e.distancia !== null && e.distancia !== undefined ? ` · d=${Number(e.distancia).toFixed(2)}` : '';
+            return `
+              <div class="event-row">
+                <span class="event-time">${hora}</span>
                 <span class="badge ${badgeClass}">${e.tipo}</span>
-                <strong style="margin-left:6px;">${e.persona_id || e.objeto_id || 'LAB'}</strong>
-                <div style="color:var(--muted); font-size:0.74rem; margin-top:2px;">
-                  ${e.origen} · ${e.metodo}${distTxt}
+                <div class="event-details">
+                  <span class="event-subject">${e.persona_id || e.objeto_id || 'SALA LIS'}</span>
+                  <span class="event-origin">${e.origen} · ${e.metodo}${distTxt}</span>
                 </div>
               </div>
-              <span style="font-family:monospace; color:var(--muted);">${hora}</span>
-            </div>
-          `;
-        }).join('');
+            `;
+          }).join('');
+        }
 
         // Tabla de Perfiles
         const perfiles = st.perfiles || [];
@@ -1034,28 +1843,28 @@
           return `
             <tr>
               <td><strong>${pf.nombre}</strong></td>
-              <td>${pf.rol} (${pf.proyecto})</td>
+              <td>${pf.rol} <span style="color:var(--muted);">(${pf.proyecto})</span></td>
               <td>
                 <span class="badge ${pf.cantidad_embeddings >= 3 ? 'badge-green' : 'badge-amber'}">
-                  ${pf.cantidad_embeddings} muestras
+                  ${pf.cantidad_embeddings} vectores
                 </span>
               </td>
               <td>
-                <span class="badge ${dentro ? 'badge-green' : 'badge-blue'}">${dentro ? 'DENTRO' : 'FUERA'}</span>
-                <small style="color:var(--muted); margin-left:6px;">${act.minutos_hoy || 0} min hoy</small>
+                <span class="badge ${dentro ? 'badge-green' : 'badge-neutral'}">${dentro ? 'EN SALA' : 'AUSENTE'}</span>
+                <small style="font-family:var(--font-mono); color:var(--muted); margin-left:6px;">${act.minutos_hoy || 0} min hoy</small>
               </td>
               <td style="display:flex; gap:6px; flex-wrap:wrap;">
-                <button class="btn btn-amber" style="padding:5px 9px;" onclick="dispararEnrolamiento('${pf.nombre}')">📷 Capturar 5 muestras</button>
-                <button class="btn btn-outline" style="padding:5px 9px;" onclick="registrarAccesoManual('${pf.nombre}', '${dentro ? 'salida' : 'entrada'}')">
-                  ${dentro ? 'Marcar Salida' : 'Marcar Entrada'}
+                <button class="btn btn-outline btn-sm" onclick="dispararEnrolamiento('${pf.nombre}')">Capturar 5 muestras</button>
+                <button class="btn btn-outline btn-sm" onclick="registrarAccesoManual('${pf.nombre}', '${dentro ? 'salida' : 'entrada'}')">
+                  ${dentro ? 'Registrar egreso' : 'Registrar ingreso'}
                 </button>
-                <button class="btn btn-red" style="padding:5px 9px;" onclick="eliminarPerfil('${pf.nombre}')">Baja</button>
+                <button class="btn btn-red btn-sm" onclick="eliminarPerfil('${pf.nombre}')">Dar de baja</button>
               </td>
             </tr>
           `;
         }).join('');
 
-        // Actualizar selectores si cambió la cantidad de opciones
+        // Actualizar selectores
         const selPin = document.getElementById('sel-persona-pin');
         const selInvP = document.getElementById('sel-persona-inv');
         if (selPin.options.length !== perfiles.length) {
@@ -1075,35 +1884,41 @@
           return `
             <tr>
               <td><strong>${item.nombre}</strong> <small style="color:var(--muted);">(${item.categoria})</small></td>
-              <td><span class="badge ${prest ? 'badge-amber' : 'badge-green'}">${prest ? 'PRESTADO' : 'DISPONIBLE'}</span></td>
-              <td>${prest ? `<strong>${prest.persona_id}</strong>` : 'En armario LIS'}</td>
+              <td><span class="badge ${prest ? 'badge-amber' : 'badge-green'}">${prest ? 'EN PRÉSTAMO' : 'EN ARMARIO'}</span></td>
+              <td>${prest ? `<strong>${prest.persona_id}</strong>` : '<span style="color:var(--muted);">Armario LIS</span>'}</td>
               <td>
                 ${prest
-                  ? `<button class="btn btn-green" style="padding:5px 10px;" onclick="registrarMovimientoInventario('devolucion', '${item.id}')">Registrar Devolución</button>`
-                  : `<button class="btn btn-outline" style="padding:5px 10px;" onclick="registrarMovimientoInventario('retiro', '${item.id}')">Prestar</button>`
+                  ? `<button class="btn btn-green btn-sm" onclick="registrarMovimientoInventario('devolucion', '${item.id}')">Registrar devolución</button>`
+                  : `<button class="btn btn-outline btn-sm" onclick="registrarMovimientoInventario('retiro', '${item.id}')">Asignar préstamo</button>`
                 }
               </td>
             </tr>
           `;
         }).join('');
 
-        // Avisos
+        // Pizarra de avisos
         const avisos = st.avisos || [];
-        document.getElementById('lista-avisos').innerHTML = avisos.map(av => `
-          <div class="person-card" style="border-left-color:var(--amber);">
-            <div class="person-info">
-              <h3>${av.texto}</h3>
-              <div class="person-meta">
-                <span>Por: <strong>${av.autor}</strong></span>
-                ${av.vencimiento ? `<span>Vence: ${av.vencimiento}</span>` : ''}
+        const contAvisos = document.getElementById('lista-avisos');
+        if (avisos.length === 0) {
+          contAvisos.innerHTML = `<div class="empty-state">No hay avisos fijados en la pizarra del laboratorio.</div>`;
+        } else {
+          contAvisos.innerHTML = avisos.map(av => `
+            <div class="person-row" style="border-left:3px solid var(--amber);">
+              <div class="person-info">
+                <h3>${av.texto}</h3>
+                <div class="person-meta">
+                  <span>Autor: <strong>${av.autor}</strong></span>
+                  ${av.vencimiento ? `<span>Vigencia: <strong>${av.vencimiento}</strong></span>` : ''}
+                </div>
               </div>
+              <button class="btn btn-outline btn-sm" onclick="cerrarAviso('${av.id}')">Archivar</button>
             </div>
-            <button class="btn btn-outline" onclick="cerrarAviso('${av.id}')">Cerrar</button>
-          </div>
-        `).join('');
+          `).join('');
+        }
 
       } catch (e) {
-        document.getElementById('lbl-portero').textContent = 'Reconectando...';
+        document.getElementById('lbl-portero').textContent = 'Sin conexión con Portero';
+        document.getElementById('dot-portero').classList.add('off');
       }
     }
 

@@ -540,62 +540,64 @@ class PipelineReconocimientoLIS:
                     ok, frame = cap.read() if (cap and cap.isOpened()) else (False, None)
 
                 if not ok or frame is None:
-                    frame = np.zeros((480, 640, 3), dtype=np.uint8)
+                    frame = np.full((480, 640, 3), (18, 20, 26), dtype=np.uint8)
+                    for gx in range(0, 640, 64):
+                        cv.line(frame, (gx, 0), (gx, 480), (26, 29, 38), 1)
+                    for gy in range(0, 480, 64):
+                        cv.line(frame, (0, gy), (640, gy), (26, 29, 38), 1)
+                    # Marcas de encuadre central
+                    cv.rectangle(frame, (48, 68), (592, 432), (38, 43, 56), 1)
                     if es_navegador:
                         cv.putText(
                             frame,
-                            "Esperando video desde el navegador...",
-                            (40, 220),
+                            "ENTRADA DE VIDEO: NAVEGADOR WEB",
+                            (72, 225),
                             cv.FONT_HERSHEY_SIMPLEX,
-                            0.65,
-                            (0, 220, 255),
-                            2,
+                            0.58,
+                            (210, 218, 230),
+                            1,
+                            cv.LINE_AA,
                         )
                         cv.putText(
                             frame,
-                            "Haga clic en 'Activar Camara' en el Tablero Web",
-                            (40, 260),
+                            "Seleccione 'Iniciar transmision local' en el panel de camara",
+                            (72, 256),
                             cv.FONT_HERSHEY_SIMPLEX,
-                            0.52,
-                            (180, 180, 180),
+                            0.46,
+                            (130, 140, 158),
                             1,
+                            cv.LINE_AA,
                         )
                     else:
                         cv.putText(
                             frame,
-                            "Camara sin senal / Desconectada",
-                            (50, 200),
+                            "SIN SENAL DE VIDEO EN FUENTE SELECCIONADA",
+                            (72, 215),
                             cv.FONT_HERSHEY_SIMPLEX,
-                            0.68,
-                            (30, 70, 240),
-                            2,
-                        )
-                        cv.putText(
-                            frame,
-                            f"Fuente: {str(self.fuente_camara)[:40]}",
-                            (50, 240),
-                            cv.FONT_HERSHEY_SIMPLEX,
-                            0.52,
-                            (210, 210, 210),
+                            0.58,
+                            (210, 218, 230),
                             1,
+                            cv.LINE_AA,
                         )
                         cv.putText(
                             frame,
-                            "Si uso IP: revise DroidCam y que esten en la misma Wi-Fi",
-                            (50, 280),
+                            f"Origen configurado: {str(self.fuente_camara)[:42]}",
+                            (72, 248),
                             cv.FONT_HERSHEY_SIMPLEX,
                             0.46,
-                            (255, 180, 0),
+                            (135, 145, 165),
                             1,
+                            cv.LINE_AA,
                         )
                         cv.putText(
                             frame,
-                            "O cambie a 'Camara de este Navegador' en la Web",
-                            (50, 315),
+                            "Verifique el dispositivo local, stream IP o active la camara web",
+                            (72, 278),
                             cv.FONT_HERSHEY_SIMPLEX,
-                            0.46,
-                            (100, 240, 140),
+                            0.44,
+                            (105, 115, 135),
                             1,
+                            cv.LINE_AA,
                         )
                     time.sleep(0.05)
                 elif self.espejo and not es_navegador:
