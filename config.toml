@@ -22,15 +22,17 @@ asistencia_csv = "asistencia/asistencia.csv"
 ingresos_csv = "manos/registro_de_ingresos.csv"
 
 [parametros]
-umbral_reconocimiento = 0.80
-metodo_comparacion = "minimo" # "minimo" o "promedio"
-intervalo_frames_asistencia = 100
-registro_permanencia_activo = false # Desactivado por privacidad (Sección 13)
-frames_cara_estable = 3
+umbral_reconocimiento = 0.68    # Equilibrio ideal para webcam sin falsos rechazos
+metodo_comparacion = "minimo"   # Compara contra la pose más afín del usuario enrolado
+margen_separacion = 0.04        # Diferencia mínima con el 2do candidato
+frames_cara_estable = 3         # Frames requeridos con rostro estable antes de inferir
 tolerancia_movimiento_px = 45
 frames_confirmacion_gesto = 5
 muestras_alta = 5
 cooldown_gesto_segundos = 4.0
+pad_crop_cara = 0.06            # 6% de margen para conservar mentón y cejas
+resolucion_recorte = 160        # Hot-swap entre: 112, 128, 160, 224
+sostener_pose_segundos = 0.5    # Tiempo que hay que sostener cada pose en el alta guiada
 pin_admin = "1234"
 token_dispositivo = "lis-local-token-2026"
 puerto_portero = 8080

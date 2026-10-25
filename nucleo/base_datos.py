@@ -155,11 +155,7 @@ class RepositorioLIS:
             except Exception:
                 pass
 
-            for obj_id, nombre, cat in INVENTARIO_INICIAL:
-                conn.execute(
-                    "INSERT OR IGNORE INTO objetos_inventario (id, nombre, categoria) VALUES (?, ?, ?)",
-                    (obj_id, nombre, cat),
-                )
+            pass
 
     @staticmethod
     def normalizar_id(nombre: str) -> str:
@@ -276,7 +272,7 @@ class RepositorioLIS:
 
         with self._conectar() as conn:
             if reemplazar:
-                conn.execute("DELETE FROM embeddings WHERE persona_id = ?", (pid,))
+                conn.execute("DELETE FROM embeddings WHERE persona_id = ? AND modelo = ?", (pid, modelo))
             for emb in embeddings:
                 arr = np.asarray(emb, dtype=np.float32).flatten()
                 conn.execute(
@@ -308,7 +304,7 @@ class RepositorioLIS:
                 """
                 SELECT p.*, COUNT(e.id) AS cantidad_embeddings
                 FROM personas p
-                LEFT JOIN embeddings e ON e.persona_id = p.id
+                LEFT JOIN embeddings e ON e.persona_id = p.id AND e.modelo = 'vggface2'
                 WHERE (p.id = ? OR lower(p.nombre) = lower(?)) AND p.activo = 1
                 GROUP BY p.id
                 """,
@@ -329,7 +325,7 @@ class RepositorioLIS:
                 SELECT p.id, p.nombre, p.rol, p.proyecto, p.pin, p.consentimiento,
                        p.fecha_alta, COUNT(e.id) AS cantidad_embeddings
                 FROM personas p
-                LEFT JOIN embeddings e ON e.persona_id = p.id
+                LEFT JOIN embeddings e ON e.persona_id = p.id AND e.modelo = 'vggface2'
                 WHERE p.activo = 1
                 GROUP BY p.id
                 ORDER BY p.nombre ASC
@@ -337,22 +333,37 @@ class RepositorioLIS:
             ).fetchall()
             return [dict(f) for f in filas]
 
-    def cargar_diccionario_embeddings(self, modelo: str = "vggface2") -> dict[str, list[np.ndarray]]:
+    def cargar_diccionario_embeddings(
+        self, modelo: str = "vggface2", con_fallback: bool = True
+    ) -> dict[str, list[np.ndarray]]:
         resultado: dict[str, list[np.ndarray]] = {}
         with self._conectar() as conn:
             filas = conn.execute(
                 """
-                SELECT p.nombre, e.vector, e.dimension
+                SELECT p.nombre, e.vector, e.dimension, e.modelo
                 FROM embeddings e
                 JOIN personas p ON p.id = e.persona_id
-                WHERE p.activo = 1 AND e.modelo = ?
-                """,
-                (modelo,),
+                WHERE p.activo = 1
+                ORDER BY e.id ASC
+                """
             ).fetchall()
+
+            por_modelo: dict[str, dict[str, list[np.ndarray]]] = {}
             for f in filas:
-                vec = np.frombuffer(f["vector"], dtype=np.float32)
-                if vec.size == f["dimension"]:
-                    resultado.setdefault(f["nombre"], []).append(vec)
+                nom = f["nombre"]
+                mod = f["modelo"]
+                dim = int(f["dimension"] or 512)
+                arr = np.frombuffer(f["vector"], dtype=np.float32)
+                if arr.size == dim:
+                    por_modelo.setdefault(mod, {}).setdefault(nom, []).append(arr)
+
+            resultado = dict(por_modelo.get(modelo, {}))
+            if con_fallback and modelo != "vggface2":
+                base_ref = por_modelo.get("vggface2", {})
+                for nom, lista in base_ref.items():
+                    if nom not in resultado or len(resultado[nom]) == 0:
+                        resultado[nom] = list(lista)
+
         return resultado
 
     def exportar_caras_csv(self) -> None:
@@ -597,15 +608,25 @@ class RepositorioLIS:
             except Exception:
                 return defecto or {}
 
-    def solicitar_enrolamiento_camara(self, nombre: str, muestras: int = 5) -> dict[str, Any]:
+    def solicitar_enrolamiento_camara(
+        self,
+        nombre: str,
+        muestras: int = 5,
+        guiado: bool = False,
+        poses: int = 5,
+        modo: str = "normal",
+    ) -> dict[str, Any]:
+        total = int(poses) if guiado else int(muestras)
         orden = {
             "activo": True,
             "nombre": nombre.strip(),
-            "muestras_totales": int(muestras),
+            "muestras_totales": total,
             "muestras_capturadas": 0,
             "estado": "pendiente",
             "mensaje": f"Posicione a {nombre.strip()} frente a la cámara...",
             "solicitado_t": ahora_iso(),
+            "guiado": bool(guiado),
+            "modo": modo,
         }
         self.guardar_estado_runtime("orden_enrolamiento", orden)
         return orden

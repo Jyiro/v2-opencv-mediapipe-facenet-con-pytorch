@@ -121,6 +121,17 @@ def test_comparacion_metodo_minimo_y_promedio():
     assert res_prom["reconocido"] is True
     assert res_prom["nombre"] == "Carlos"
 
+    # Evaluación por top2
+    res_top2 = consultar_embeddings(
+        embedding_actual=muestra_consulta,
+        base_embeddings=diccionario_personas,
+        umbral=0.8,
+        metodo="top2",
+    )
+    assert res_top2["reconocido"] is True
+    assert res_top2["nombre"] == "Carlos"
+    assert res_top2["distancia"] < 0.70
+
     # Evaluación con vector desconocido
     desconocido_vec = np.random.randn(512).astype(np.float32)
     desconocido_vec = desconocido_vec / np.linalg.norm(desconocido_vec)
@@ -133,6 +144,63 @@ def test_comparacion_metodo_minimo_y_promedio():
     assert res_desc["reconocido"] is False
     assert res_desc["nombre"] == "Desconocido"
     assert res_desc["distancia"] >= 0.4  # Informa la distancia cruda real
+
+
+def test_margen_separacion_ratio_test():
+    """Verifica que el margen de separación (Ratio Test) prevenga falsas aceptaciones por ambigüedad."""
+    np.random.seed(42)
+    base = np.random.randn(512).astype(np.float32)
+    base = base / np.linalg.norm(base)
+
+    # Dos personas sintéticas muy parecidas entre sí (ambigüedad)
+    p1 = base + np.random.normal(0, 0.005, 512).astype(np.float32)
+    p1 = p1 / np.linalg.norm(p1)
+
+    p2 = base + np.random.normal(0, 0.008, 512).astype(np.float32)
+    p2 = p2 / np.linalg.norm(p2)
+
+    galeria = {
+        "Persona1": [p1],
+        "Persona2": [p2],
+    }
+
+    # Vector de consulta situado casi equidistante entre ambas (d1 ~ 0.50, d2 ~ 0.54)
+    consulta = base + np.random.normal(0, 0.025, 512).astype(np.float32)
+    consulta = consulta / np.linalg.norm(consulta)
+
+    # Con margen 0.0, el candidato con menor distancia gana aunque la diferencia sea minúscula
+    res_sin_margen = consultar_embeddings(
+        embedding_actual=consulta,
+        base_embeddings=galeria,
+        umbral=0.70,
+        margen_separacion=0.0,
+    )
+    assert res_sin_margen["reconocido"] is True
+
+    # Con margen 0.10, la ambigüedad detectada rechaza el reconocimiento
+    res_con_margen = consultar_embeddings(
+        embedding_actual=consulta,
+        base_embeddings=galeria,
+        umbral=0.70,
+        margen_separacion=0.10,
+    )
+    assert res_con_margen["reconocido"] is False
+    assert res_con_margen["nombre"] == "Desconocido"
+    assert res_con_margen["candidato_mas_cercano"] in ("Persona1", "Persona2")
+    assert res_con_margen["margen"] is not None and res_con_margen["margen"] < 0.10
+
+    # Si la distancia al 1er candidato es clarísima (< 0.45), debe reconocer aún con candidatos cercanos
+    consulta_clarisima = p1 + np.random.normal(0, 0.01, 512).astype(np.float32)
+    consulta_clarisima = consulta_clarisima / np.linalg.norm(consulta_clarisima)
+    res_claro = consultar_embeddings(
+        embedding_actual=consulta_clarisima,
+        base_embeddings=galeria,
+        umbral=0.62,
+        margen_separacion=0.15,
+    )
+    assert res_claro["reconocido"] is True
+    assert res_claro["nombre"] == "Persona1"
+    assert res_claro["distancia"] < 0.45
 
 
 def test_ciclo_reingreso_mismo_dia(repo_en_memoria: RepositorioLIS):

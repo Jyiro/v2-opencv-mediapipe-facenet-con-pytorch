@@ -84,6 +84,22 @@ def guardar_frame_disco_seguro(datos_jpeg: bytes, ruta_destino: Path) -> None:
         pass
 
 
+_preview_pruebas_lock = threading.Lock()
+_preview_pruebas: bytes | None = None
+
+
+def guardar_preview_pruebas_jpeg(datos_jpeg: bytes | None) -> None:
+    """Guarda en memoria (nunca en disco) la comparación del recorte crudo vs filtrado."""
+    global _preview_pruebas
+    with _preview_pruebas_lock:
+        _preview_pruebas = datos_jpeg
+
+
+def obtener_preview_pruebas_jpeg() -> bytes | None:
+    with _preview_pruebas_lock:
+        return _preview_pruebas
+
+
 def normalizar_origen_camara(origen: int | str) -> int | str:
     """Normaliza automáticamente cadenas de IP, DroidCam y puertos."""
     if isinstance(origen, int):

@@ -18,6 +18,18 @@ import torch
 logger = logging.getLogger(__name__)
 
 
+# Las 4 resoluciones que se guardan automáticamente en cada alta para poder hacer Hot-Swap
+RESOLUCIONES_SOPORTADAS: tuple[int, ...] = (112, 128, 160, 224)
+
+
+def nombre_modelo_resolucion(resolucion: int) -> str:
+    """Devuelve la clave de modelo en SQLite para una resolución dada."""
+    res = int(resolucion)
+    if res == 160:
+        return "vggface2"  # Retrocompatible con la galería estándar
+    return f"vggface2_{res}"
+
+
 def recortar_con_margen(
     imagen: np.ndarray,
     origin_x: int,
@@ -44,6 +56,26 @@ def recortar_con_margen(
     return recorte if recorte.size > 0 else None
 
 
+def redimensionar_recorte(recorte: np.ndarray, target_size: int = 160) -> np.ndarray:
+    """Lleva el recorte a la resolución deseada y lo adapta al tensor 160x160 de FaceNet.
+
+    - Si target_size == 160: redimensiona directo a 160x160 (INTER_AREA al achicar, INTER_LINEAR al agrandar).
+    - Si target_size != 160 (ej. 112, 128, 224): muestrea la cara exactamente a (target_size x target_size)
+      y luego la adapta bilinealmente a 160x160 para que las capas convolucionales de InceptionResnetV1
+      mantengan su geometría espacial de 3x3 sin colapsar.
+    """
+    if recorte is None or recorte.size == 0:
+        return recorte
+    h, w = recorte.shape[:2]
+    interp_escala = cv.INTER_AREA if (w > target_size and h > target_size) else cv.INTER_LINEAR
+    escalado = recorte if (w, h) == (target_size, target_size) else cv.resize(recorte, (target_size, target_size), interpolation=interp_escala)
+
+    if target_size == 160:
+        return escalado
+    interp_red = cv.INTER_AREA if target_size > 160 else cv.INTER_LINEAR
+    return cv.resize(escalado, (160, 160), interpolation=interp_red)
+
+
 class ExtractorEmbeddings(ABC):
     """Interfaz base para extractores de representaciones faciales."""
 
@@ -64,36 +96,50 @@ class ExtractorEmbeddings(ABC):
         """Genera un vector embedding 1D (np.float32) a partir de una cara en BGR."""
         pass
 
+    def generar_par_embeddings(
+        self, recorte_a: np.ndarray, recorte_b: np.ndarray
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+        """Genera dos embeddings en lote (batch B=2) o de forma secuencial."""
+        return self.generar_embedding(recorte_a), self.generar_embedding(recorte_b)
+
 
 class ExtractorFaceNetRapido(ExtractorEmbeddings):
-    """FaceNet optimizado: InceptionResnetV1 directamente sobre el recorte de BlazeFace."""
+    """FaceNet optimizado con soporte de inferencia en lote multi-resolución."""
 
-    def __init__(self, device: str = "cpu") -> None:
+    RESOLUCIONES_VALIDAS: tuple[int, ...] = RESOLUCIONES_SOPORTADAS
+
+    def __init__(self, device: str = "cpu", resolucion: int = 160) -> None:
         self.device = torch.device(device)
-        logger.info("Cargando InceptionResnetV1 (vggface2) en %s...", self.device)
+        self.resolucion = int(resolucion) if int(resolucion) in self.RESOLUCIONES_VALIDAS else 160
+        logger.info("Cargando InceptionResnetV1 (vggface2) en %s (resolución activa=%dpx)...", self.device, self.resolucion)
         from facenet_pytorch import InceptionResnetV1
 
         self.modelo = InceptionResnetV1(pretrained="vggface2").eval().to(self.device)
-        logger.info("InceptionResnetV1 cargado correctamente (modo rápido sin MTCNN)")
+        logger.info("InceptionResnetV1 listo.")
+
+    def fijar_resolucion(self, resolucion: int) -> None:
+        res = int(resolucion)
+        if res in self.RESOLUCIONES_VALIDAS:
+            self.resolucion = res
 
     @property
     def nombre_modelo(self) -> str:
-        return "vggface2"
+        return nombre_modelo_resolucion(self.resolucion)
 
     @property
     def dimension(self) -> int:
         return 512
 
-    def generar_embedding(self, recorte_bgr: np.ndarray) -> np.ndarray | None:
-        """Procesa el recorte facial de 160x160 y genera el embedding normalizado."""
+    def generar_embedding(self, recorte_bgr: np.ndarray, resolucion: int | None = None) -> np.ndarray | None:
+        """Genera el embedding normalizado para la resolución activa o la indicada."""
         try:
             if recorte_bgr is None or recorte_bgr.size == 0:
                 return None
 
-            recorte_160 = cv.resize(recorte_bgr, (160, 160), interpolation=cv.INTER_AREA)
+            res = int(resolucion) if resolucion is not None else self.resolucion
+            recorte_160 = redimensionar_recorte(recorte_bgr, res)
             recorte_rgb = cv.cvtColor(recorte_160, cv.COLOR_BGR2RGB)
 
-            # Estandarización idéntica a facenet: (x - 127.5) / 128.0
             img_norm = (recorte_rgb.astype(np.float32) - 127.5) / 128.0
             tensor = torch.from_numpy(img_norm.transpose(2, 0, 1)).unsqueeze(0).to(self.device)
 
@@ -106,8 +152,51 @@ class ExtractorFaceNetRapido(ExtractorEmbeddings):
                 vector = vector / norma
             return vector
         except Exception:
-            logger.exception("Error al generar embedding con FaceNet rápido")
+            logger.exception("Error al generar embedding con FaceNet")
             return None
+
+    def generar_embeddings_multiresolucion(
+        self,
+        recorte_bgr: np.ndarray,
+        resoluciones: tuple[int, ...] = RESOLUCIONES_SOPORTADAS,
+    ) -> dict[int, np.ndarray]:
+        """Calcula en UNA SOLA pasada neuronal (batch) los embeddings de todas las resoluciones (112, 128, 160, 224).
+
+        Se usa durante el alta para guardar el perfil en todas las resoluciones a la vez
+        y permitir hacer Hot-Swap después sin re-enrolar.
+        """
+        if recorte_bgr is None or recorte_bgr.size == 0:
+            return {}
+        try:
+            tensores = []
+            for res in resoluciones:
+                img_160 = redimensionar_recorte(recorte_bgr, res)
+                rgb = cv.cvtColor(img_160, cv.COLOR_BGR2RGB)
+                norm = (rgb.astype(np.float32) - 127.5) / 128.0
+                tensores.append(norm.transpose(2, 0, 1))
+
+            batch = np.stack(tensores, axis=0)
+            t_batch = torch.from_numpy(batch).to(self.device)
+
+            with torch.inference_mode():
+                embs = self.modelo(t_batch).detach().cpu().numpy().astype(np.float32)
+
+            resultado: dict[int, np.ndarray] = {}
+            for i, res in enumerate(resoluciones):
+                v = embs[i].flatten()
+                n = np.linalg.norm(v)
+                if n > 0:
+                    v = v / n
+                resultado[int(res)] = v
+            return resultado
+        except Exception:
+            logger.exception("Error al generar embeddings multi-resolución")
+            return {}
+
+    def generar_par_embeddings(
+        self, recorte_a: np.ndarray, recorte_b: np.ndarray, resolucion: int | None = None
+    ) -> tuple[np.ndarray | None, np.ndarray | None]:
+        return self.generar_embedding(recorte_a, resolucion), self.generar_embedding(recorte_b, resolucion)
 
 
 class ExtractorArcFaceONNX(ExtractorEmbeddings):

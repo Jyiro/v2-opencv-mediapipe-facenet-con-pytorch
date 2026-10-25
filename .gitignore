@@ -217,4 +217,5 @@ datos/*.jpg
 datos/*.tmp
 datos/*.jsonl
 datos/*.txt
+datos/backups/
 !datos/.gitkeep

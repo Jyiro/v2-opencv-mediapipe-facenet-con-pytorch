@@ -5,6 +5,7 @@ import os
 import sys
 import threading
 import time
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -19,6 +20,7 @@ from hardware.camara import (
     guardar_frame_disco_seguro,
     guardar_frame_subido_jpeg,
     obtener_frame_jpeg,
+    obtener_preview_pruebas_jpeg,
 )
 from nucleo.base_datos import RepositorioLIS
 from nucleo.eventos import ahora_iso, crear_evento, derivar_estado, validar_evento
@@ -32,8 +34,13 @@ fichador = ClienteFichadorSerie(repositorio=repositorio, simular=True)
 
 
 class GestorEventosPortero:
-    def __init__(self, ruta_jsonl: Path | str | None = None) -> None:
+    def __init__(
+        self,
+        ruta_jsonl: Path | str | None = None,
+        repositorio_db: RepositorioLIS | None = None,
+    ) -> None:
         self.ruta_jsonl = Path(ruta_jsonl) if ruta_jsonl else RUTA_JSONL
+        self.repo = repositorio_db
         self.lock = threading.Lock()
         self.ruta_jsonl.parent.mkdir(parents=True, exist_ok=True)
         if not self.ruta_jsonl.exists():
@@ -67,10 +74,12 @@ class GestorEventosPortero:
                     f.write(json.dumps(item, ensure_ascii=False) + "\n")
                     aceptados.append(ev_id)
                     ids_existentes.add(ev_id)
-                    try:
-                        repositorio.registrar_evento(item)
-                    except Exception:
-                        pass
+                    repo_dest = self.repo or (repositorio if self.ruta_jsonl == RUTA_JSONL else None)
+                    if repo_dest is not None:
+                        try:
+                            repo_dest.registrar_evento(item)
+                        except Exception:
+                            pass
                 f.flush()
                 os.fsync(f.fileno())
             return aceptados, duplicados
@@ -253,13 +262,38 @@ class ManejadorPortero(BaseHTTPRequestHandler):
                 "orden_enrolamiento", {"activo": False, "estado": "inactivo"}
             )
             estado["camara_runtime"] = repositorio.leer_estado_runtime(
-                "camara_estado", {"activa": False, "fps": 0.0, "rostros_en_cuadro": 0, "fuente": "0"}
+                "camara_estado", {"activa": False, "fps": 0.0, "rostros_en_cuadro": 0, "fuente": "0", "resolucion": 160}
             )
             estado["orden_camara"] = repositorio.leer_estado_runtime(
                 "orden_camara", {"fuente": "0"}
             )
+            estado["pruebas"] = repositorio.leer_estado_runtime("pruebas_estado", {})
+            estado["pruebas_config"] = repositorio.leer_estado_runtime("pruebas_config", {})
+            estado["config_reconocimiento"] = repositorio.leer_estado_runtime(
+                "config_reconocimiento", {"resolucion": 160, "resoluciones_disponibles": [112, 128, 160, 224]}
+            )
             estado["ultimos_eventos"] = list(reversed(eventos[-40:]))
             self._responder_json(200, estado)
+            return
+
+        if ruta == "/pruebas/estado":
+            st = repositorio.leer_estado_runtime("pruebas_estado", {})
+            cfg = repositorio.leer_estado_runtime("pruebas_config", {})
+            self._responder_json(200, {"estado": st, "config": cfg})
+            return
+
+        if ruta == "/pruebas/preview.jpg":
+            jpg = obtener_preview_pruebas_jpeg()
+            if jpg:
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(jpg)))
+                self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+                self.end_headers()
+                self.wfile.write(jpg)
+            else:
+                self.send_response(204)
+                self.end_headers()
             return
 
         if ruta == "/frame.jpg":
@@ -335,6 +369,20 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             fuente = str(datos.get("fuente", "0")).strip()
             repositorio.guardar_estado_runtime("orden_camara", {"fuente": fuente, "t": ahora_iso()})
             self._responder_json(200, {"ok": True, "fuente": fuente})
+            return
+
+        if ruta == "/reconocimiento/resolucion":
+            resolucion = int(datos.get("resolucion", 160))
+            if resolucion not in (112, 128, 160, 224):
+                self._responder_json(400, {"ok": False, "error": "Resolución no soportada. Use 112, 128, 160 o 224."})
+                return
+            nueva_cfg = {
+                "resolucion": resolucion,
+                "resoluciones_disponibles": [112, 128, 160, 224],
+                "t": ahora_iso(),
+            }
+            repositorio.guardar_estado_runtime("config_reconocimiento", nueva_cfg)
+            self._responder_json(200, {"ok": True, "config": nueva_cfg})
             return
 
         if ruta == "/events":
@@ -427,6 +475,67 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             self._responder_json(200, {"ok": True, "perfil": perfil, "orden_enrolamiento": orden})
             return
 
+        if ruta == "/pruebas/configurar":
+            cfg_actual = repositorio.leer_estado_runtime("pruebas_config", {})
+            activo = bool(datos.get("activo", cfg_actual.get("activo", False)))
+            sujeto = str(datos.get("sujeto", cfg_actual.get("sujeto", ""))).strip()
+            usar_en_rec = bool(datos.get("usar_en_reconocimiento", cfg_actual.get("usar_en_reconocimiento", False)))
+            reiniciar = bool(datos.get("reiniciar", False))
+            ilum = datos.get("iluminacion") if "iluminacion" in datos else cfg_actual.get("iluminacion", {})
+            resolucion = int(datos.get("resolucion", cfg_actual.get("resolucion", 160)))
+
+            token = cfg_actual.get("token_reinicio", "")
+            if reiniciar or not token:
+                token = uuid.uuid4().hex[:8]
+                repositorio.guardar_estado_runtime("pruebas_estado", {})
+
+            nueva_cfg = {
+                "activo": activo,
+                "sujeto": sujeto,
+                "usar_en_reconocimiento": usar_en_rec,
+                "token_reinicio": token,
+                "iluminacion": ilum,
+                "resolucion": resolucion,
+                "t": ahora_iso(),
+            }
+            repositorio.guardar_estado_runtime("pruebas_config", nueva_cfg)
+            self._responder_json(200, {"ok": True, "config": nueva_cfg})
+            return
+
+        if ruta == "/perfiles/alta_guiada":
+            nombre = str(datos.get("nombre", "")).strip()
+            rol = str(datos.get("rol", "Integrante")).strip()
+            proyecto = str(datos.get("proyecto", "LIS")).strip()
+            pin = str(datos.get("pin", "1111")).strip()
+            consentimiento = bool(datos.get("consentimiento", True))
+            poses = int(datos.get("poses", 5))
+            modo = str(datos.get("modo", "normal")).strip()
+
+            if not consentimiento:
+                self._responder_json(
+                    400,
+                    {"ok": False, "error": "El consentimiento informado es obligatorio (Sección 13)."},
+                )
+                return
+
+            if not nombre:
+                self._responder_json(400, {"ok": False, "error": "Falta indicar el nombre del perfil."})
+                return
+
+            perfil = repositorio.crear_o_actualizar_persona(
+                nombre=nombre, rol=rol, proyecto=proyecto, pin=pin, consentimiento=consentimiento
+            )
+            orden = repositorio.solicitar_enrolamiento_camara(
+                nombre=perfil["nombre"],
+                guiado=True,
+                poses=poses,
+                modo=modo,
+            )
+            fichador.cambiar_rgb(245, 158, 11)
+            fichador.mostrar_mensaje("ALTA GUIADA", perfil["nombre"][:16])
+            self._responder_json(200, {"ok": True, "perfil": perfil, "orden_enrolamiento": orden})
+            return
+
         if ruta == "/perfiles/enrolar":
             nombre = str(datos.get("nombre", "")).strip()
             if not nombre:
@@ -435,9 +544,18 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             perfil = repositorio.obtener_persona(nombre)
             if not perfil:
                 perfil = repositorio.crear_o_actualizar_persona(nombre=nombre)
-            orden = repositorio.solicitar_enrolamiento_camara(nombre=perfil["nombre"], muestras=5)
+            guiado = bool(datos.get("guiado", False))
+            poses = int(datos.get("poses", 5))
+            modo = str(datos.get("modo", "normal"))
+            orden = repositorio.solicitar_enrolamiento_camara(
+                nombre=perfil["nombre"],
+                muestras=poses if not guiado else 5,
+                guiado=guiado,
+                poses=poses,
+                modo=modo,
+            )
             fichador.cambiar_rgb(245, 158, 11)
-            fichador.mostrar_mensaje("MODO ALTA CARA", perfil["nombre"][:16])
+            fichador.mostrar_mensaje("ALTA GUIADA" if guiado else "MODO ALTA CARA", perfil["nombre"][:16])
             self._responder_json(200, {"ok": True, "orden": orden})
             return
 
@@ -445,6 +563,21 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             nombre = str(datos.get("nombre", "")).strip()
             ok = repositorio.eliminar_persona(nombre)
             self._responder_json(200, {"ok": ok})
+            return
+
+        if ruta in ("/perfiles/cancelar_enrolamiento", "/perfiles/cancelar"):
+            repositorio.guardar_estado_runtime(
+                "orden_enrolamiento",
+                {
+                    "activo": False,
+                    "estado": "cancelado",
+                    "mensaje": "Captura biométrica cancelada por el usuario.",
+                    "t": ahora_iso(),
+                },
+            )
+            fichador.cambiar_rgb(56, 189, 248)
+            fichador.mostrar_mensaje("ENROLAMIENTO", "CANCELADO")
+            self._responder_json(200, {"ok": True, "mensaje": "Captura biométrica cancelada exitosamente."})
             return
 
         if ruta == "/hardware/touch":

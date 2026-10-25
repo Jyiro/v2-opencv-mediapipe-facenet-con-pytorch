@@ -9,8 +9,6 @@ from typing import Any
 import cv2 as cv
 import mediapipe as mp
 import numpy as np
-import torch
-from facenet_pytorch import InceptionResnetV1
 
 PROYECTO_DIR = Path(__file__).resolve().parent.parent
 MEDIAPIPE_DIR = Path(__file__).resolve().parent
@@ -27,6 +25,13 @@ from hardware.serie import ClienteFichadorSerie
 from nucleo.base_datos import RepositorioLIS
 from nucleo.comparacion import consultar_embeddings
 from nucleo.eventos import crear_evento, derivar_estado
+from nucleo.iluminacion import evaluar_calidad
+from nucleo.pose import EstimadorPose, GuiaDePoses, PoseCabeza, pasos_para
+from nucleo.reconocimiento import (
+    RESOLUCIONES_SOPORTADAS,
+    ExtractorFaceNetRapido,
+    nombre_modelo_resolucion,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
@@ -39,33 +44,17 @@ def cargar_configuracion() -> dict[str, Any]:
     return {}
 
 
-class ExtractorFaceNetRapido:
-    """
-    Extrae embeddings de 512 dimensiones con InceptionResnetV1 (vggface2)
-    directamente sobre el recorte de BlazeFace, eliminando la doble detección de MTCNN en vivo.
-    """
-
-    def __init__(self) -> None:
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.resnet = InceptionResnetV1(pretrained="vggface2").eval().to(self.device)
-        logging.info("Extractor InceptionResnetV1 (vggface2) inicializado en %s", self.device)
-
-    def generar_embedding(self, recorte_bgr: np.ndarray) -> np.ndarray | None:
-        try:
-            if recorte_bgr is None or recorte_bgr.size == 0:
-                return None
-            h, w = recorte_bgr.shape[:2]
-            if h < 20 or w < 20:
-                return None
-            img_160 = cv.resize(recorte_bgr, (160, 160), interpolation=cv.INTER_AREA)
-            img_rgb = cv.cvtColor(img_160, cv.COLOR_BGR2RGB).astype(np.float32)
-            tensor = torch.from_numpy((img_rgb - 127.5) / 128.0).permute(2, 0, 1).unsqueeze(0).to(self.device)
-            with torch.inference_mode():
-                emb = self.resnet(tensor).detach().cpu().numpy().flatten()
-            return emb.astype(np.float32)
-        except Exception:
-            logging.exception("Error al generar embedding facial")
-            return None
+def _ascii_seguro(texto: str) -> str:
+    """Convierte acentos a ASCII básico para renderizado seguro en fuentes Hershey de OpenCV."""
+    reemplazos = {
+        "á": "a", "é": "e", "í": "i", "ó": "o", "ú": "u",
+        "Á": "A", "É": "E", "Í": "I", "Ó": "O", "Ú": "U",
+        "ñ": "n", "Ñ": "N", "ü": "u", "Ü": "U", "…": "...",
+    }
+    res = str(texto or "")
+    for orig, dest in reemplazos.items():
+        res = res.replace(orig, dest)
+    return "".join(c for c in res if ord(c) < 128)
 
 
 class PistaRostro:
@@ -89,12 +78,17 @@ class PipelineReconocimientoLIS:
         modelos_cfg = self.config.get("modelos", {})
         cam_cfg = self.config.get("camara", {})
 
-        self.umbral: float = float(params.get("umbral_reconocimiento", 0.80))
+        self.umbral: float = float(params.get("umbral_reconocimiento", 0.68))
         self.metodo_comp: str = str(params.get("metodo_comparacion", "minimo"))
+        self.margen_separacion: float = float(params.get("margen_separacion", 0.04))
+        self.pad_crop_cara: float = float(params.get("pad_crop_cara", 0.06))
+        res_cfg = int(params.get("resolucion_recorte", 160))
+        self.resolucion_recorte: int = res_cfg if res_cfg in RESOLUCIONES_SOPORTADAS else 160
         self.frames_estable_req: int = int(params.get("frames_cara_estable", 3))
         self.tolerancia_px: int = int(params.get("tolerancia_movimiento_px", 45))
         self.frames_gesto_req: int = int(params.get("frames_confirmacion_gesto", 5))
         self.cooldown_seg: float = float(params.get("cooldown_gesto_segundos", 4.0))
+        self.sostener_pose_seg: float = float(params.get("sostener_pose_segundos", 0.5))
         self.proyecto: str = str(params.get("proyecto", "LIS"))
 
         self.mostrar_ventana = mostrar_ventana and bool(cam_cfg.get("mostrar_ventana_local", True))
@@ -105,9 +99,16 @@ class PipelineReconocimientoLIS:
 
         self.repositorio = RepositorioLIS()
         self.fichador = ClienteFichadorSerie(repositorio=self.repositorio, simular=True)
-        self.extractor = ExtractorFaceNetRapido()
+        self.extractor = ExtractorFaceNetRapido(resolucion=self.resolucion_recorte)
 
-        self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
+        # Diccionario Hot-Swap: {112: {...}, 128: {...}, 160: {...}, 224: {...}}
+        self.galerias_por_resolucion: dict[int, dict[str, list[np.ndarray]]] = {}
+        self._recargar_galerias()
+        self.repositorio.guardar_estado_runtime(
+            "config_reconocimiento",
+            {"resolucion": self.resolucion_recorte, "resoluciones_disponibles": list(RESOLUCIONES_SOPORTADAS)},
+        )
+
         self.ultimo_disparo_por_persona: dict[str, float] = {}
         self.banner_feedback: tuple[str, tuple[int, int, int], float] | None = None
 
@@ -120,9 +121,49 @@ class PipelineReconocimientoLIS:
         self.ultimas_manos_mp: Any = None
         self.pistas: list[PistaRostro] = []
 
-        self.buffer_enrolamiento: list[np.ndarray] = []
+        # Buffers multi-resolución para el alta: {112: [emb1, ...], 128: [...], 160: [...], 224: [...]}
+        self.buffers_alta_multires: dict[int, list[np.ndarray]] = {r: [] for r in RESOLUCIONES_SOPORTADAS}
         self.nombre_enrolando: str | None = None
         self.ultimo_frame_captura_alta: int = 0
+
+        # Alta guiada por poses
+        self.ruta_landmarks = MEDIAPIPE_DIR / modelos_cfg.get("landmarks_caras", "face_landmarker.task")
+        self._landmarker: Any = None
+        self.estimador_pose = EstimadorPose(espejo=self.espejo)
+        self.guia: GuiaDePoses | None = None
+        self.hud_guia: dict[str, Any] | None = None
+
+    def _recargar_galerias(self) -> None:
+        """Carga en RAM los bancos de embeddings de las 4 resoluciones para permitir Hot-Swap instantáneo."""
+        for r in RESOLUCIONES_SOPORTADAS:
+            clave_mod = nombre_modelo_resolucion(r)
+            # con_fallback=True permite que perfiles antiguos (solo en 160) sigan funcionando
+            self.galerias_por_resolucion[r] = self.repositorio.cargar_diccionario_embeddings(
+                modelo=clave_mod, con_fallback=True
+            )
+
+    @property
+    def base_embeddings_activa(self) -> dict[str, list[np.ndarray]]:
+        return self.galerias_por_resolucion.get(self.resolucion_recorte, {})
+
+    def _sincronizar_config_reconocimiento(self) -> None:
+        """Verifica si desde la interfaz web se solicitó un Hot-Swap de resolución."""
+        cfg = self.repositorio.leer_estado_runtime("config_reconocimiento", {})
+        if not cfg:
+            return
+        res_solicitada = int(cfg.get("resolucion", self.resolucion_recorte))
+        if res_solicitada in RESOLUCIONES_SOPORTADAS and res_solicitada != self.resolucion_recorte:
+            self.resolucion_recorte = res_solicitada
+            self.extractor.fijar_resolucion(res_solicitada)
+            # Forzar re-inferencia inmediata de todos los rostros en cámara con la nueva resolución
+            for p in self.pistas:
+                p.frames_desde_inferencia = 999
+            self.banner_feedback = (
+                f"HOT-SWAP ACTIVO: Resolucion cambiada a {res_solicitada}x{res_solicitada}px",
+                (15, 110, 210),
+                time.time() + 3.0,
+            )
+            logging.info("Hot-Swap de resolución aplicado: %dx%d px", res_solicitada, res_solicitada)
 
     def _cb_caras(self, result: Any, output_image: Any, timestamp_ms: int) -> None:
         self.ultimas_caras_mp = result
@@ -139,11 +180,6 @@ class PipelineReconocimientoLIS:
             logging.info("Abriendo stream de cámara en %s", fuente_norm)
             try:
                 cap = cv.VideoCapture(fuente_norm)
-                if not cap.isOpened():
-                    logging.warning(
-                        "No se pudo conectar a la cámara IP en %s (verifique que DroidCam esté activo en el móvil y en la misma Wi-Fi).",
-                        fuente_norm,
-                    )
                 return cap
             except Exception as exc:
                 logging.warning("Excepción al conectar con stream %s: %s", fuente_norm, exc)
@@ -158,156 +194,353 @@ class PipelineReconocimientoLIS:
             else:
                 cap = cv.VideoCapture(idx)
             if not cap.isOpened():
-                logging.info("Reintentando apertura de cámara %d con backend por defecto...", idx)
                 cap = cv.VideoCapture(idx)
-            if cap.isOpened():
-                logging.info("Cámara física conectada exitosamente en índice %d.", idx)
-            else:
-                logging.warning("No se detectó cámara física en índice %d. Activando modo simulado (sin señal).", idx)
             return cap
         except Exception as exc:
-            logging.warning("Excepción al abrir cámara %s: %s. Usando modo simulado.", self.fuente_camara, exc)
+            logging.warning("Excepción al abrir cámara %s: %s.", self.fuente_camara, exc)
             return cv.VideoCapture()
 
-    def _actualizar_pistas(self, frame_bgr: np.ndarray, detecciones: list[tuple[int, int, int, int]]) -> list[PistaRostro]:
+    def _obtener_landmarker(self) -> Any:
+        if self._landmarker is not None:
+            return self._landmarker
+        if not self.ruta_landmarks.exists():
+            logging.warning("No se encontró el modelo FaceLandmarker en %s", self.ruta_landmarks)
+            self._landmarker = False
+            return False
+        try:
+            BaseOptions = mp.tasks.BaseOptions
+            FaceLandmarker = mp.tasks.vision.FaceLandmarker
+            FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
+            VisionRunningMode = mp.tasks.vision.RunningMode
+
+            opts = FaceLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=str(self.ruta_landmarks)),
+                running_mode=VisionRunningMode.IMAGE,
+                num_faces=1,
+            )
+            self._landmarker = FaceLandmarker.create_from_options(opts)
+            return self._landmarker
+        except Exception:
+            logging.exception("Fallo al inicializar FaceLandmarker")
+            self._landmarker = False
+            return False
+
+    def _cerrar_landmarker(self) -> None:
+        if self._landmarker and hasattr(self._landmarker, "close"):
+            try:
+                self._landmarker.close()
+            except Exception:
+                pass
+        self._landmarker = None
+
+    def _actualizar_pistas(self, frame_bgr: np.ndarray, cajas_detectadas: list[tuple[int, int, int, int]]) -> list[PistaRostro]:
         nuevas_pistas: list[PistaRostro] = []
-        usadas: set[int] = set()
+        cajas_asignadas = set()
 
-        for (x, y, w, h) in detecciones:
-            cx, cy = x + w // 2, y + h // 2
+        for pista in self.pistas:
             mejor_idx = -1
-            menor_dist = float("inf")
-
-            for idx, pista_ant in enumerate(self.pistas):
-                if idx in usadas:
+            menor_dist = 999999.0
+            cx, cy = pista.centro
+            for idx_caja, caja in enumerate(cajas_detectadas):
+                if idx_caja in cajas_asignadas:
                     continue
-                dist_px = float(np.hypot(cx - pista_ant.centro[0], cy - pista_ant.centro[1]))
-                if dist_px < self.tolerancia_px and dist_px < menor_dist:
-                    menor_dist = dist_px
-                    mejor_idx = idx
+                x, y, w, h = caja
+                c_caja = (x + w // 2, y + h // 2)
+                dist = ((cx - c_caja[0]) ** 2 + (cy - c_caja[1]) ** 2) ** 0.5
+                if dist < menor_dist and dist <= self.tolerancia_px:
+                    menor_dist = dist
+                    mejor_idx = idx_caja
 
-            if mejor_idx >= 0:
-                pista = self.pistas[mejor_idx]
-                usadas.add(mejor_idx)
+            if mejor_idx != -1:
+                cajas_asignadas.add(mejor_idx)
+                x, y, w, h = cajas_detectadas[mejor_idx]
+                cx, cy = x + w // 2, y + h // 2
                 pista.bbox = (x, y, w, h)
                 pista.centro = (cx, cy)
                 pista.frames_estables += 1
                 pista.frames_desde_inferencia += 1
-            else:
-                pista = PistaRostro((x, y, w, h), (cx, cy))
+                nuevas_pistas.append(pista)
 
+        for idx_caja, caja in enumerate(cajas_detectadas):
+            if idx_caja not in cajas_asignadas:
+                x, y, w, h = caja
+                nuevas_pistas.append(PistaRostro((x, y, w, h), (x + w // 2, y + h // 2)))
+
+        for pista in nuevas_pistas:
+            x, y, w, h = pista.bbox
             debe_inferir = (
                 pista.frames_estables == self.frames_estable_req
-                or (pista.frames_estables > self.frames_estable_req and pista.frames_desde_inferencia >= 45)
+                or (pista.frames_estables > self.frames_estable_req and pista.frames_desde_inferencia >= 15)
                 or (self.nombre_enrolando is not None and pista.frames_estables >= 2)
             )
 
             if debe_inferir:
                 fh, fw = frame_bgr.shape[:2]
-                pad_x, pad_y = int(w * 0.08), int(h * 0.08)
+                pad_x, pad_y = int(w * self.pad_crop_cara), int(h * self.pad_crop_cara)
                 x1, y1 = max(0, x - pad_x), max(0, y - pad_y)
                 x2, y2 = min(fw, x + w + pad_x), min(fh, y + h + pad_y)
                 recorte = frame_bgr[y1:y2, x1:x2]
-                emb = self.extractor.generar_embedding(recorte)
-                if emb is not None:
-                    pista.ultimo_embedding = emb
-                    pista.frames_desde_inferencia = 0
-                    res = consultar_embeddings(emb, self.base_embeddings, self.umbral, self.metodo_comp)
-                    pista.reconocido = res["reconocido"]
-                    pista.nombre = res["nombre"]
-                    pista.distancia = res["distancia"]
 
-            nuevas_pistas.append(pista)
+                if recorte is not None and recorte.size > 0:
+                    emb = self.extractor.generar_embedding(recorte, resolucion=self.resolucion_recorte)
+                    if emb is not None:
+                        pista.ultimo_embedding = emb
+                        pista.frames_desde_inferencia = 0
+                        res = consultar_embeddings(
+                            emb,
+                            self.base_embeddings_activa,
+                            self.umbral,
+                            self.metodo_comp,
+                            margen_separacion=self.margen_separacion,
+                        )
+                        pista.reconocido = res["reconocido"]
+                        pista.nombre = res["nombre"]
+                        pista.distancia = res["distancia"]
 
         self.pistas = nuevas_pistas
         return self.pistas
 
-    def _procesar_enrolamiento_activo(self, frame_idx: int) -> None:
+    def _limpiar_buffers_alta(self) -> None:
+        for r in RESOLUCIONES_SOPORTADAS:
+            self.buffers_alta_multires[r].clear()
+
+    def _persistir_alta_multiresolucion(self, nombre_objetivo: str) -> int:
+        """Guarda las muestras capturadas en las 4 resoluciones dentro de SQLite y recarga las galerías."""
+        total_muestras = len(self.buffers_alta_multires.get(160, []))
+        for r in RESOLUCIONES_SOPORTADAS:
+            vectores_r = self.buffers_alta_multires.get(r, [])
+            if vectores_r:
+                self.repositorio.guardar_embeddings_persona(
+                    nombre=nombre_objetivo,
+                    embeddings=vectores_r,
+                    modelo=nombre_modelo_resolucion(r),
+                    reemplazar=True,
+                    sincronizar_csv=(r == 160),
+                )
+        self._recargar_galerias()
+        # Forzar re-evaluación inmediata en el próximo frame
+        for p in self.pistas:
+            p.frames_desde_inferencia = 999
+        return total_muestras
+
+    def _procesar_enrolamiento_activo(self, frame_bgr: np.ndarray, frame_idx: int) -> None:
         orden = self.repositorio.leer_estado_runtime("orden_enrolamiento", {"activo": False})
         if not orden.get("activo"):
-            self.nombre_enrolando = None
-            self.buffer_enrolamiento.clear()
+            if self.nombre_enrolando is not None:
+                self.nombre_enrolando = None
+                self._limpiar_buffers_alta()
+                self.guia = None
+                self.hud_guia = None
+                self._cerrar_landmarker()
             return
 
         nombre_objetivo = str(orden.get("nombre", "")).strip()
+        es_guiado = bool(orden.get("guiado", False))
         muestras_totales = int(orden.get("muestras_totales", 5))
 
         if self.nombre_enrolando != nombre_objetivo:
             self.nombre_enrolando = nombre_objetivo
-            self.buffer_enrolamiento.clear()
-            self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
+            self._limpiar_buffers_alta()
+            self._recargar_galerias()
+            if es_guiado:
+                self.guia = GuiaDePoses(pasos=pasos_para(muestras_totales), sostener_seg=self.sostener_pose_seg)
+                self.estimador_pose.reiniciar()
 
         if not self.pistas:
             orden["mensaje"] = f"Buscando rostro de {nombre_objetivo} en cámara..."
+            self.hud_guia = None
             self.repositorio.guardar_estado_runtime("orden_enrolamiento", orden)
             return
 
         pista_principal = max(self.pistas, key=lambda p: p.bbox[2] * p.bbox[3])
-        if pista_principal.ultimo_embedding is None:
+        x, y, w, h = pista_principal.bbox
+        fh, fw = frame_bgr.shape[:2]
+        pad_x, pad_y = int(w * self.pad_crop_cara), int(h * self.pad_crop_cara)
+        x1, y1 = max(0, x - pad_x), max(0, y - pad_y)
+        x2, y2 = min(fw, x + w + pad_x), min(fh, y + h + pad_y)
+        recorte_bgr = frame_bgr[y1:y2, x1:x2]
+
+        if recorte_bgr is None or recorte_bgr.size == 0:
             return
 
-        if frame_idx - self.ultimo_frame_captura_alta < 8:
-            return
+        calidad = evaluar_calidad(recorte_bgr)
+        muestras_actuales = len(self.buffers_alta_multires[160])
 
-        # Verificación anti-duplicado biométrico en la primera muestra
-        if len(self.buffer_enrolamiento) == 0:
-            otras_caras = {k: v for k, v in self.base_embeddings.items() if k.lower() != nombre_objetivo.lower()}
-            chequeo = consultar_embeddings(pista_principal.ultimo_embedding, otras_caras, self.umbral, self.metodo_comp)
-            if chequeo["reconocido"]:
-                duplicado_de = chequeo["nombre"]
-                msg_err = f"Rostro ya registrado bajo el perfil '{duplicado_de}' (d={chequeo['distancia']:.2f})."
-                logging.warning(msg_err)
+        if es_guiado:
+            landmarker = self._obtener_landmarker()
+            pose: PoseCabeza | None = None
+            landmarks = None
+            if landmarker:
+                try:
+                    rgb_frame = cv.cvtColor(frame_bgr, cv.COLOR_BGR2RGB)
+                    mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+                    res_lm = landmarker.detect(mp_img)
+                    if res_lm and res_lm.face_landmarks:
+                        landmarks = res_lm.face_landmarks[0]
+                        pose = self.estimador_pose.estimar(landmarks)
+                except Exception:
+                    pass
+
+            if self.guia is None:
+                self.guia = GuiaDePoses(pasos=pasos_para(muestras_totales), sostener_seg=self.sostener_pose_seg)
+
+            res_guia = self.guia.actualizar(pose, calidad_ok=calidad["ok"], motivo_calidad=calidad["motivo"])
+
+            self.hud_guia = {
+                "bbox": pista_principal.bbox,
+                "instruccion": res_guia.instruccion,
+                "mensaje": res_guia.mensaje,
+                "coincide": res_guia.coincide,
+                "progreso": res_guia.progreso_sostener,
+                "indice": res_guia.indice,
+                "total": res_guia.total,
+                "hechas": res_guia.hechas,
+            }
+
+            orden.update({
+                "estado": "guiado",
+                "instruccion": res_guia.instruccion,
+                "mensaje": res_guia.mensaje,
+                "coincide": res_guia.coincide,
+                "progreso_sostener": round(res_guia.progreso_sostener, 2),
+                "muestras_capturadas": muestras_actuales,
+                "muestras_totales": res_guia.total,
+                "indice_paso": res_guia.indice,
+                "total_pasos": res_guia.total,
+                "hechas": res_guia.hechas,
+            })
+            self.repositorio.guardar_estado_runtime("orden_enrolamiento", orden)
+            self.fichador.mostrar_mensaje(f"P{res_guia.indice+1}/{res_guia.total} {res_guia.instruccion[:10]}", res_guia.mensaje[:16])
+
+            if res_guia.capturar:
+                if res_guia.clave == "frente" and landmarks:
+                    self.estimador_pose.fijar_referencia_frontal(landmarks)
+
+                embs_multi = self.extractor.generar_embeddings_multiresolucion(recorte_bgr)
+                emb_160 = embs_multi.get(160)
+
+                if emb_160 is not None:
+                    if muestras_actuales == 0:
+                        otras_caras = {
+                            k: v for k, v in self.galerias_por_resolucion.get(160, {}).items()
+                            if k.lower() != nombre_objetivo.lower()
+                        }
+                        chequeo = consultar_embeddings(emb_160, otras_caras, self.umbral, self.metodo_comp)
+                        if chequeo["reconocido"]:
+                            duplicado_de = chequeo["nombre"]
+                            msg_err = f"Rostro ya registrado bajo '{duplicado_de}' (d={chequeo['distancia']:.2f})."
+                            logging.warning(msg_err)
+                            self.repositorio.guardar_estado_runtime(
+                                "orden_enrolamiento",
+                                {
+                                    "activo": False,
+                                    "nombre": nombre_objetivo,
+                                    "estado": "error_duplicado",
+                                    "mensaje": msg_err,
+                                },
+                            )
+                            self.banner_feedback = (msg_err, (0, 0, 230), time.time() + 4.0)
+                            self.fichador.notificar_evento_acceso("DUPLICADO", "error")
+                            self.nombre_enrolando = None
+                            self._limpiar_buffers_alta()
+                            self.guia = None
+                            self.hud_guia = None
+                            self._cerrar_landmarker()
+                            return
+
+                    for r, vec in embs_multi.items():
+                        self.buffers_alta_multires[r].append(vec)
+                    self.fichador.sonar_beep("ok")
+
+            if res_guia.completado:
+                guardadas = self._persistir_alta_multiresolucion(nombre_objetivo)
+                msg_ok = f"Alta de {nombre_objetivo} lista ({guardadas} poses guardadas en 112, 128, 160 y 224px)."
+                self.repositorio.guardar_estado_runtime(
+                    "orden_enrolamiento",
+                    {
+                        "activo": False,
+                        "nombre": nombre_objetivo,
+                        "muestras_totales": res_guia.total,
+                        "muestras_capturadas": guardadas,
+                        "estado": "completado",
+                        "mensaje": msg_ok,
+                    },
+                )
+                self.fichador.cambiar_rgb(16, 185, 129)
+                self.fichador.mostrar_mensaje("ALTA GUIADA OK", nombre_objetivo[:16])
+                self.fichador.sonar_beep("ok")
+                self.banner_feedback = (msg_ok, (16, 185, 129), time.time() + 4.0)
+                self.nombre_enrolando = None
+                self._limpiar_buffers_alta()
+                self.guia = None
+                self.hud_guia = None
+                self._cerrar_landmarker()
+        else:
+            if frame_idx - self.ultimo_frame_captura_alta < 8:
+                return
+
+            embs_multi = self.extractor.generar_embeddings_multiresolucion(recorte_bgr)
+            emb_160 = embs_multi.get(160)
+            if emb_160 is None:
+                return
+
+            if muestras_actuales == 0:
+                otras_caras = {
+                    k: v for k, v in self.galerias_por_resolucion.get(160, {}).items()
+                    if k.lower() != nombre_objetivo.lower()
+                }
+                chequeo = consultar_embeddings(emb_160, otras_caras, self.umbral, self.metodo_comp)
+                if chequeo["reconocido"]:
+                    duplicado_de = chequeo["nombre"]
+                    msg_err = f"Rostro ya registrado bajo '{duplicado_de}' (d={chequeo['distancia']:.2f})."
+                    logging.warning(msg_err)
+                    self.repositorio.guardar_estado_runtime(
+                        "orden_enrolamiento",
+                        {
+                            "activo": False,
+                            "nombre": nombre_objetivo,
+                            "muestras_totales": muestras_totales,
+                            "muestras_capturadas": 0,
+                            "estado": "error_duplicado",
+                            "mensaje": msg_err,
+                        },
+                    )
+                    self.banner_feedback = (msg_err, (0, 0, 230), time.time() + 4.0)
+                    self.fichador.notificar_evento_acceso("DUPLICADO", "error")
+                    self.nombre_enrolando = None
+                    self._limpiar_buffers_alta()
+                    return
+
+            for r, vec in embs_multi.items():
+                self.buffers_alta_multires[r].append(vec)
+            self.ultimo_frame_captura_alta = frame_idx
+            capturadas = len(self.buffers_alta_multires[160])
+
+            if capturadas < muestras_totales:
+                orden["muestras_capturadas"] = capturadas
+                orden["estado"] = "capturando"
+                orden["mensaje"] = f"Capturando {nombre_objetivo}: muestra {capturadas}/{muestras_totales} (Multi-Res: 112/128/160/224px)"
+                self.repositorio.guardar_estado_runtime("orden_enrolamiento", orden)
+            else:
+                guardadas = self._persistir_alta_multiresolucion(nombre_objetivo)
+                msg_ok = f"Perfil de {nombre_objetivo} guardado ({guardadas} muestras en 112, 128, 160 y 224px)."
                 self.repositorio.guardar_estado_runtime(
                     "orden_enrolamiento",
                     {
                         "activo": False,
                         "nombre": nombre_objetivo,
                         "muestras_totales": muestras_totales,
-                        "muestras_capturadas": 0,
-                        "estado": "error_duplicado",
-                        "mensaje": msg_err,
+                        "muestras_capturadas": guardadas,
+                        "estado": "completado",
+                        "mensaje": msg_ok,
                     },
                 )
-                self.banner_feedback = (msg_err, (0, 0, 230), time.time() + 4.0)
-                self.fichador.notificar_evento_acceso("DUPLICADO", "error")
+                self.fichador.cambiar_rgb(16, 185, 129)
+                self.fichador.mostrar_mensaje("ALTA COMPLETA", nombre_objetivo[:16])
+                self.fichador.sonar_beep("ok")
+                self.banner_feedback = (msg_ok, (16, 185, 129), time.time() + 4.0)
                 self.nombre_enrolando = None
-                return
-
-        self.buffer_enrolamiento.append(pista_principal.ultimo_embedding.copy())
-        self.ultimo_frame_captura_alta = frame_idx
-        capturadas = len(self.buffer_enrolamiento)
-
-        if capturadas < muestras_totales:
-            orden["muestras_capturadas"] = capturadas
-            orden["estado"] = "capturando"
-            orden["mensaje"] = f"Capturando {nombre_objetivo}: muestra {capturadas}/{muestras_totales} (gire levemente el rostro)"
-            self.repositorio.guardar_estado_runtime("orden_enrolamiento", orden)
-        else:
-            self.repositorio.guardar_embeddings_persona(
-                nombre=nombre_objetivo,
-                embeddings=self.buffer_enrolamiento,
-                reemplazar=True,
-                sincronizar_csv=True,
-            )
-            self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
-            msg_ok = f"Perfil biométrico de {nombre_objetivo} guardado ({muestras_totales} muestras)."
-            self.repositorio.guardar_estado_runtime(
-                "orden_enrolamiento",
-                {
-                    "activo": False,
-                    "nombre": nombre_objetivo,
-                    "muestras_totales": muestras_totales,
-                    "muestras_capturadas": muestras_totales,
-                    "estado": "completado",
-                    "mensaje": msg_ok,
-                },
-            )
-            self.fichador.cambiar_rgb(16, 185, 129)
-            self.fichador.mostrar_mensaje("ALTA COMPLETA", nombre_objetivo[:16])
-            self.fichador.sonar_beep("ok")
-            self.banner_feedback = (msg_ok, (16, 185, 129), time.time() + 4.0)
-            self.nombre_enrolando = None
-            self.buffer_enrolamiento.clear()
+                self._limpiar_buffers_alta()
 
     def _evaluar_gestos_y_eventos(self, frame_bgr: np.ndarray, estados_presentes: dict[str, Any]) -> None:
         if not self.ultimas_manos_mp or not self.ultimas_manos_mp.gestures:
@@ -329,7 +562,6 @@ class PipelineReconocimientoLIS:
             if nombre_gesto not in ("Open_Palm", "Thumb_Up"):
                 continue
 
-            # Buscar el rostro reconocido geométricamente vinculado a esta mano
             for pista in self.pistas:
                 x, y, w, h = pista.bbox
                 cx, cy = pista.centro
@@ -360,7 +592,6 @@ class PipelineReconocimientoLIS:
                     pista.gesto_actual = nombre_gesto
                     pista.frames_gesto = 1
 
-                # Barra de progreso de confirmación del gesto sobre la cara
                 progreso = min(1.0, pista.frames_gesto / float(self.frames_gesto_req))
                 ancho_barra = int(w * progreso)
                 cv.rectangle(frame_bgr, (x, y - 12), (x + w, y - 4), (40, 40, 40), -1)
@@ -395,7 +626,8 @@ class PipelineReconocimientoLIS:
                             "nombre": pista.nombre,
                             "proyecto": self.proyecto,
                             "umbral": self.umbral,
-                            "modelo": "vggface2",
+                            "modelo": nombre_modelo_resolucion(self.resolucion_recorte),
+                            "resolucion": self.resolucion_recorte,
                         },
                     )
                     self.repositorio.registrar_evento(evento)
@@ -407,22 +639,21 @@ class PipelineReconocimientoLIS:
                         color_b,
                         ahora_ts + 3.5,
                     )
-                    logging.info("Evento %s registrado para %s (d=%.3f)", tipo_ev, pista.nombre, pista.distancia)
+                    logging.info("Evento %s registrado para %s (d=%.3f, res=%dpx)", tipo_ev, pista.nombre, pista.distancia, self.resolucion_recorte)
 
     def _dibujar_hud(self, frame_bgr: np.ndarray, fps: float, presentes: dict[str, Any]) -> None:
         fh, fw = frame_bgr.shape[:2]
 
-        # Header superior oscuro
         overlay = frame_bgr.copy()
         cv.rectangle(overlay, (0, 0), (fw, 44), (18, 24, 38), -1)
         cv.addWeighted(overlay, 0.82, frame_bgr, 0.18, 0, frame_bgr)
 
-        fuente_corta = str(self.fuente_camara)[:14]
+        fuente_corta = str(self.fuente_camara)[:12]
         texto_hdr = (
-            f"LIS Vision | FPS: {fps:.1f} | Cam: {fuente_corta} | "
-            f"Presentes: {len(presentes)} | d<{self.umbral:.2f}"
+            f"LIS Vision | FPS: {fps:.1f} | Res: {self.resolucion_recorte}px | "
+            f"Cam: {fuente_corta} | Presentes: {len(presentes)} | d<{self.umbral:.2f}"
         )
-        cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.54, (235, 240, 245), 1, cv.LINE_AA)
+        cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.50, (235, 240, 245), 1, cv.LINE_AA)
 
         for pista in self.pistas:
             x, y, w, h = pista.bbox
@@ -434,17 +665,18 @@ class PipelineReconocimientoLIS:
                 color = (16, 200, 120)
                 estado_str = "DENTRO" if pista.nombre in presentes else "FUERA"
                 etiqueta_sup = f"{pista.nombre} [{estado_str}]"
-                etiqueta_inf = f"d: {pista.distancia:.2f} / umbral: {self.umbral:.2f}"
+                etiqueta_inf = f"d: {pista.distancia:.2f} / umbral: {self.umbral:.2f} ({self.resolucion_recorte}px)"
             else:
                 color = (60, 65, 235)
                 etiqueta_sup = "Desconocido"
-                etiqueta_inf = f"d: {pista.distancia:.2f} (umbral: {self.umbral:.2f})"
+                etiqueta_inf = f"d: {pista.distancia:.2f} (umbral: {self.umbral:.2f} | {self.resolucion_recorte}px)"
 
+            ancho_badge = max(w, 210)
             cv.rectangle(frame_bgr, (x, y), (x + w, y + h), color, 2)
-            cv.rectangle(frame_bgr, (x, max(45, y - 30)), (x + max(w, 190), y), color, -1)
+            cv.rectangle(frame_bgr, (x, max(45, y - 30)), (x + ancho_badge, y), color, -1)
             cv.putText(
                 frame_bgr,
-                etiqueta_sup,
+                _ascii_seguro(etiqueta_sup),
                 (x + 6, max(62, y - 9)),
                 cv.FONT_HERSHEY_SIMPLEX,
                 0.52,
@@ -454,25 +686,39 @@ class PipelineReconocimientoLIS:
             )
             cv.putText(
                 frame_bgr,
-                etiqueta_inf,
+                _ascii_seguro(etiqueta_inf),
                 (x, min(fh - 10, y + h + 20)),
                 cv.FONT_HERSHEY_SIMPLEX,
-                0.50,
+                0.48,
                 color,
                 2,
                 cv.LINE_AA,
             )
 
-        # Banner de enrolamiento activo
+        if self.hud_guia:
+            bx, by, bw, bh = self.hud_guia["bbox"]
+            cx, cy = bx + bw // 2, by + bh // 2
+            col_g = (16, 225, 130) if self.hud_guia.get("coincide") else (225, 180, 20)
+            cv.ellipse(frame_bgr, (cx, cy), (int(bw * 0.65), int(bh * 0.85)), 0, 0, 360, col_g, 2, cv.LINE_AA)
+            prog = float(self.hud_guia.get("progreso", 0.0))
+            if prog > 0:
+                cv.ellipse(frame_bgr, (cx, cy), (int(bw * 0.65) + 6, int(bh * 0.85) + 6), 0, -90, -90 + int(360 * prog), (0, 240, 160), 4, cv.LINE_AA)
+            inst = _ascii_seguro(str(self.hud_guia.get("instruccion", "")))
+            mens = _ascii_seguro(str(self.hud_guia.get("mensaje", "")))
+            idx_p = int(self.hud_guia.get("indice", 0)) + 1
+            tot_p = int(self.hud_guia.get("total", 5))
+            cv.putText(frame_bgr, f"[{idx_p}/{tot_p}] {inst}", (max(16, cx - 120), max(60, by - 40)), cv.FONT_HERSHEY_SIMPLEX, 0.65, (255, 255, 255), 2, cv.LINE_AA)
+            cv.putText(frame_bgr, mens, (max(16, cx - 120), max(80, by - 16)), cv.FONT_HERSHEY_SIMPLEX, 0.48, col_g, 1, cv.LINE_AA)
+
         if self.nombre_enrolando:
             orden = self.repositorio.leer_estado_runtime("orden_enrolamiento", {})
-            msg = orden.get("mensaje", f"Enrolando a {self.nombre_enrolando}...")
-            cv.rectangle(frame_bgr, (0, fh - 52), (fw, fh), (15, 110, 210), -1)
-            cv.putText(frame_bgr, msg, (16, fh - 18), cv.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2, cv.LINE_AA)
+            msg = _ascii_seguro(orden.get("mensaje", f"Captura biometrica: {self.nombre_enrolando}..."))
+            cv.rectangle(frame_bgr, (0, fh - 36), (fw, fh), (15, 110, 210), -1)
+            cv.putText(frame_bgr, msg, (16, fh - 12), cv.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1, cv.LINE_AA)
         elif self.banner_feedback and time.time() < self.banner_feedback[2]:
             msg, col, _ = self.banner_feedback
-            cv.rectangle(frame_bgr, (0, fh - 48), (fw, fh), col, -1)
-            cv.putText(frame_bgr, msg, (16, fh - 16), cv.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2, cv.LINE_AA)
+            cv.rectangle(frame_bgr, (0, fh - 36), (fw, fh), col, -1)
+            cv.putText(frame_bgr, _ascii_seguro(msg), (16, fh - 12), cv.FONT_HERSHEY_SIMPLEX, 0.52, (255, 255, 255), 1, cv.LINE_AA)
 
     def ejecutar(self) -> None:
         BaseOptions = mp.tasks.BaseOptions
@@ -506,8 +752,8 @@ class PipelineReconocimientoLIS:
             while True:
                 frame_idx += 1
 
-                # Comprobar si se solicitó un cambio de cámara desde el Tablero Web
-                if frame_idx % 12 == 0:
+                if frame_idx % 10 == 0:
+                    self._sincronizar_config_reconocimiento()
                     orden_cam = self.repositorio.leer_estado_runtime("orden_camara", {})
                     fuente_orden = orden_cam.get("fuente")
                     if fuente_orden is not None and str(fuente_orden).strip() != str(self.fuente_camara).strip():
@@ -541,64 +787,17 @@ class PipelineReconocimientoLIS:
 
                 if not ok or frame is None:
                     frame = np.full((480, 640, 3), (18, 20, 26), dtype=np.uint8)
-                    for gx in range(0, 640, 64):
-                        cv.line(frame, (gx, 0), (gx, 480), (26, 29, 38), 1)
-                    for gy in range(0, 480, 64):
-                        cv.line(frame, (0, gy), (640, gy), (26, 29, 38), 1)
-                    # Marcas de encuadre central
                     cv.rectangle(frame, (48, 68), (592, 432), (38, 43, 56), 1)
-                    if es_navegador:
-                        cv.putText(
-                            frame,
-                            "ENTRADA DE VIDEO: NAVEGADOR WEB",
-                            (72, 225),
-                            cv.FONT_HERSHEY_SIMPLEX,
-                            0.58,
-                            (210, 218, 230),
-                            1,
-                            cv.LINE_AA,
-                        )
-                        cv.putText(
-                            frame,
-                            "Seleccione 'Iniciar transmision local' en el panel de camara",
-                            (72, 256),
-                            cv.FONT_HERSHEY_SIMPLEX,
-                            0.46,
-                            (130, 140, 158),
-                            1,
-                            cv.LINE_AA,
-                        )
-                    else:
-                        cv.putText(
-                            frame,
-                            "SIN SENAL DE VIDEO EN FUENTE SELECCIONADA",
-                            (72, 215),
-                            cv.FONT_HERSHEY_SIMPLEX,
-                            0.58,
-                            (210, 218, 230),
-                            1,
-                            cv.LINE_AA,
-                        )
-                        cv.putText(
-                            frame,
-                            f"Origen configurado: {str(self.fuente_camara)[:42]}",
-                            (72, 248),
-                            cv.FONT_HERSHEY_SIMPLEX,
-                            0.46,
-                            (135, 145, 165),
-                            1,
-                            cv.LINE_AA,
-                        )
-                        cv.putText(
-                            frame,
-                            "Verifique el dispositivo local, stream IP o active la camara web",
-                            (72, 278),
-                            cv.FONT_HERSHEY_SIMPLEX,
-                            0.44,
-                            (105, 115, 135),
-                            1,
-                            cv.LINE_AA,
-                        )
+                    cv.putText(
+                        frame,
+                        "SIN SENAL DE VIDEO EN FUENTE SELECCIONADA",
+                        (72, 235),
+                        cv.FONT_HERSHEY_SIMPLEX,
+                        0.58,
+                        (210, 218, 230),
+                        1,
+                        cv.LINE_AA,
+                    )
                     time.sleep(0.05)
                 elif self.espejo and not es_navegador:
                     frame = cv.flip(frame, 1)
@@ -608,8 +807,8 @@ class PipelineReconocimientoLIS:
                 t_prev = t_now
                 fps_actual = 0.9 * fps_actual + 0.1 * (1.0 / dt)
 
-                if frame_idx % 20 == 0:
-                    self.base_embeddings = self.repositorio.cargar_diccionario_embeddings()
+                if frame_idx % 30 == 0:
+                    self._recargar_galerias()
 
                 rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
                 mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -625,7 +824,7 @@ class PipelineReconocimientoLIS:
                         cajas.append((int(bb.origin_x), int(bb.origin_y), int(bb.width), int(bb.height)))
 
                 self._actualizar_pistas(frame, cajas)
-                self._procesar_enrolamiento_activo(frame_idx)
+                self._procesar_enrolamiento_activo(frame, frame_idx)
 
                 eventos_recientes = self.repositorio.listar_eventos(desde_seq=0, limite=2000)
                 estado_derivado = derivar_estado(eventos_recientes)
@@ -651,6 +850,7 @@ class PipelineReconocimientoLIS:
                             "fps": round(fps_actual, 1),
                             "rostros_en_cuadro": len(self.pistas),
                             "fuente": str(self.fuente_camara),
+                            "resolucion": self.resolucion_recorte,
                         },
                     )
 
@@ -662,6 +862,7 @@ class PipelineReconocimientoLIS:
                 else:
                     time.sleep(0.01)
 
+        self._cerrar_landmarker()
         cap.release()
         if self.mostrar_ventana:
             cv.destroyAllWindows()

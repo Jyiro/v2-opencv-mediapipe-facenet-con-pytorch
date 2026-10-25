@@ -555,6 +555,97 @@
       border-radius: 3px;
     }
 
+    /* HUD Biométrica de Enrolamiento Guiado por Poses */
+    .hud-guiado-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(10, 14, 22, 0.45);
+      backdrop-filter: blur(1.5px);
+      pointer-events: none;
+    }
+    .hud-guiado-oval-container {
+      position: relative;
+      width: 170px;
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hud-guiado-oval-svg {
+      width: 100%;
+      height: 100%;
+    }
+    .hud-oval-bg {
+      fill: none;
+      stroke: rgba(255, 255, 255, 0.35);
+      stroke-width: 3;
+      stroke-dasharray: 6 6;
+    }
+    .hud-oval-progress {
+      fill: none;
+      stroke: #10b981;
+      stroke-width: 5;
+      stroke-linecap: round;
+      stroke-dasharray: 600;
+      stroke-dashoffset: 600;
+      transition: stroke-dashoffset 0.15s ease-out, stroke 0.2s ease;
+    }
+    .hud-guiado-icono {
+      position: absolute;
+      font-size: 2.2rem;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      animation: pulseIcon 1.5s infinite ease-in-out;
+    }
+    @keyframes pulseIcon {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.12); }
+    }
+    .hud-guiado-info {
+      margin-top: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      text-align: center;
+    }
+    .hud-guiado-instruccion {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: #ffffff;
+      text-shadow: 0 2px 6px rgba(0,0,0,0.85);
+      font-family: var(--font-sans);
+    }
+    .hud-guiado-feedback {
+      font-size: 0.78rem;
+      color: #6ee7b7;
+      font-family: var(--font-mono);
+      text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+    }
+    .hud-guiado-pills {
+      display: flex;
+      gap: 5px;
+      margin-top: 4px;
+    }
+    .hud-pose-pill {
+      font-size: 0.65rem;
+      padding: 2px 6px;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.6);
+      border: 1px solid rgba(255,255,255,0.2);
+      color: var(--muted);
+      font-family: var(--font-mono);
+    }
+    .hud-pose-pill.done {
+      background: rgba(16, 185, 129, 0.25);
+      border-color: #10b981;
+      color: #6ee7b7;
+    }
+
     /* Módulo periférico serie (Reemplaza el bloque verde fosforescente de Arduino) */
     .serial-module {
       background: var(--surface-alt);
@@ -996,11 +1087,14 @@
 
     <main>
       <div id="banner-enrolamiento" class="enroll-banner">
-        <div>
+        <div style="flex:1;">
           <strong id="enroll-titulo" style="font-family:var(--font-mono); font-size:0.78rem; letter-spacing:0.04em;">CAPTURA BIOMÉTRICA EN CURSO</strong>
-          <div id="enroll-detalle" style="font-size:0.8rem; margin-top:2px;">Posicione el rostro frente a la cámara para adquirir las 5 muestras vectoriales.</div>
+          <div id="enroll-detalle" style="font-size:0.8rem; margin-top:2px;">Posicione el rostro frente a la cámara para adquirir las muestras vectoriales.</div>
         </div>
-        <span class="badge badge-amber" id="enroll-progreso">0 / 5</span>
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="badge badge-amber" id="enroll-progreso">0 / 5</span>
+          <button class="btn btn-sm btn-outline" style="border-color:rgba(239,68,68,0.5); color:#ef4444; padding:3px 10px; font-size:0.74rem;" onclick="cancelarEnrolamiento()">Cancelar captura</button>
+        </div>
       </div>
 
       <!-- VISTA 01: MONITOR DE SALA EN VIVO -->
@@ -1078,6 +1172,19 @@
                   </div>
                 </div>
 
+                <div class="cam-toolbar-row" style="border-top:1px solid var(--border); padding-top:6px;">
+                  <span class="cam-toolbar-label">Resolución Reconocimiento (Hot-Swap)</span>
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span id="badge-res-activa" class="badge badge-blue">160×160 PX</span>
+                    <select id="sel-hotswap-res" style="width:auto; padding:4px 8px; font-size:0.77rem;" onchange="cambiarResolucionHotSwap(this.value)">
+                      <option value="112">112×112 px (Rápido / Lejos)</option>
+                      <option value="128">128×128 px (Equilibrado)</option>
+                      <option value="160" selected>160×160 px (Estándar FaceNet)</option>
+                      <option value="224">224×224 px (Alta definición)</option>
+                    </select>
+                  </div>
+                </div>
+
                 <!-- Configuración Stream IP -->
                 <div id="panel-droidcam" style="display:none; gap:8px; align-items:center; padding-top:4px; border-top:1px solid var(--border);">
                   <input id="inp-url-droidcam" type="text" placeholder="http://192.168.100.18:4747/video" value="http://192.168.100.18:4747/video" style="flex:1; padding:5px 8px; font-family:var(--font-mono); font-size:0.76rem;" />
@@ -1102,6 +1209,22 @@
                 <div class="video-Overlay-meta">
                   <span>BLAZEFACE + VGGFACE2 (512-D)</span>
                   <span>GESTO: PALMA (INGRESO) / PULGAR (EGRESO)</span>
+                </div>
+                <!-- HUD de Enrolamiento Guiado por Poses -->
+                <div id="hud-guiado-overlay" class="hud-guiado-overlay" style="display:none;">
+                  <button class="btn btn-sm btn-outline" style="position:absolute; top:10px; right:10px; z-index:10; background:rgba(18,21,28,0.85); border-color:rgba(239,68,68,0.6); color:#ef4444; font-size:0.72rem; padding:4px 8px;" onclick="cancelarEnrolamiento()">✕ Cancelar</button>
+                  <div class="hud-guiado-oval-container">
+                    <svg class="hud-guiado-oval-svg" viewBox="0 0 200 250">
+                      <ellipse cx="100" cy="125" rx="80" ry="110" class="hud-oval-bg" />
+                      <ellipse id="hud-oval-progreso" cx="100" cy="125" rx="80" ry="110" class="hud-oval-progress" />
+                    </svg>
+                  </div>
+                  <div class="hud-guiado-info">
+                    <div id="hud-guiado-paso-badge" class="badge badge-amber">POSE 1 / 5</div>
+                    <div id="hud-guiado-instruccion" class="hud-guiado-instruccion">Mirada al frente</div>
+                    <div id="hud-guiado-feedback" class="hud-guiado-feedback">Mantenga el rostro centrado hacia la cámara</div>
+                    <div id="hud-guiado-pills" class="hud-guiado-pills"></div>
+                  </div>
                 </div>
               </div>
 
@@ -1204,9 +1327,22 @@
                 <input id="inp-consentimiento" type="checkbox" checked style="width:auto; margin-top:2px;" />
                 <span>El integrante presta conformidad para el almacenamiento local de descriptores vectoriales (512-D), sin retención de imágenes fotográficas.</span>
               </label>
+              <div style="padding:9px 11px; border-radius:5px; background:var(--surface-alt); border:1px solid var(--border); font-size:0.77rem; color:var(--text-secondary); margin-bottom:6px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <span><strong>Captura Multi-Resolución Automática:</strong> Al enrolar se guardan en simultáneo las 4 escalas (<code>112px</code>, <code>128px</code>, <code>160px</code> y <code>224px</code>).</span>
+                  <select id="sel-hotswap-res-alta" style="width:auto; padding:4px 8px; font-size:0.76rem;" onchange="cambiarResolucionHotSwap(this.value)">
+                    <option value="112">Reconocer en: 112×112 px</option>
+                    <option value="128">Reconocer en: 128×128 px</option>
+                    <option value="160" selected>Reconocer en: 160×160 px</option>
+                    <option value="224">Reconocer en: 224×224 px</option>
+                  </select>
+                </div>
+              </div>
               <div style="display:flex; gap:8px; flex-wrap:wrap; padding-top:4px;">
-                <button class="btn" onclick="guardarPerfil(true)">Guardar y capturar 5 muestras faciales</button>
-                <button class="btn btn-outline" onclick="guardarPerfil(false)">Registrar solo con PIN</button>
+                <button class="btn btn-green" onclick="guardarPerfilGuiado(5)">Alta Guiada (5 poses bancarias)</button>
+                <button class="btn btn-outline" onclick="guardarPerfilGuiado(3)">Alta Rápida (3 poses)</button>
+                <button class="btn btn-outline" onclick="guardarPerfil(true)">Ráfaga clásica (5 fotos)</button>
+                <button class="btn btn-outline" onclick="guardarPerfil(false)">Solo con PIN</button>
               </div>
             </div>
           </div>
@@ -1591,6 +1727,51 @@
       actualizarEstado();
     }
 
+    async function guardarPerfilGuiado(poses = 5) {
+      const nombre = document.getElementById('inp-nombre').value.trim();
+      const rol = document.getElementById('inp-rol').value;
+      const pin = document.getElementById('inp-pin').value.trim() || '1234';
+      const consentimiento = document.getElementById('inp-consentimiento').checked;
+      if (!nombre) { alert('Indique el nombre y apellido del integrante.'); return; }
+      if (!consentimiento) {
+        alert('Se requiere el consentimiento del integrante para calcular descriptores vectoriales.');
+        return;
+      }
+      const res = await apiPost('/perfiles/alta_guiada', {
+        nombre, rol, pin, consentimiento, poses
+      });
+      if (!res.ok) { alert(res.error || 'Error al iniciar alta guiada'); return; }
+      document.getElementById('inp-nombre').value = '';
+      cambiarVista('pared', document.querySelectorAll('.tab-btn')[0]);
+      actualizarEstado();
+    }
+
+    async function iniciarEnrolamientoGuiado(nombre, poses = 5) {
+      const res = await apiPost('/perfiles/alta_guiada', { nombre, poses });
+      if (!res.ok) { alert(res.error || 'Error al iniciar enrolamiento guiado'); return; }
+      cambiarVista('pared', document.querySelectorAll('.tab-btn')[0]);
+      actualizarEstado();
+    }
+
+    async function cancelarEnrolamiento() {
+      try {
+        await apiPost('/perfiles/cancelar_enrolamiento', {});
+      } catch (e) {
+        console.warn('Error al cancelar enrolamiento:', e);
+      }
+      const hud = document.getElementById('hud-guiado-overlay');
+      if (hud) hud.style.display = 'none';
+      const banner = document.getElementById('banner-enrolamiento');
+      if (banner) banner.classList.remove('show');
+      actualizarEstado();
+    }
+
+    async function cambiarResolucionHotSwap(res) {
+      const resolucion = parseInt(res, 10);
+      await apiPost('/reconocimiento/resolucion', { resolucion });
+      actualizarEstado();
+    }
+
     async function dispararEnrolamiento(nombre) {
       await apiPost('/perfiles/enrolar', { nombre });
       cambiarVista('pared', document.querySelectorAll('.tab-btn')[0]);
@@ -1734,6 +1915,58 @@
           banner.classList.remove('show');
         }
 
+        // Overlay de alta guiada por poses sobre el video
+        const hudGuiado = document.getElementById('hud-guiado-overlay');
+        if (hudGuiado) {
+          if (enr.activo && enr.guiado) {
+            hudGuiado.style.display = 'flex';
+            const idxPaso = (enr.indice_paso ?? 0) + 1;
+            const totPasos = enr.total_pasos || enr.muestras_totales || 5;
+
+            const badgePaso = document.getElementById('hud-guiado-paso-badge');
+            if (badgePaso) {
+              badgePaso.textContent = `POSE ${idxPaso} / ${totPasos}`;
+              badgePaso.className = 'badge ' + (enr.coincide ? 'badge-green' : 'badge-amber');
+            }
+
+            const instruccionEl = document.getElementById('hud-guiado-instruccion');
+            if (instruccionEl) {
+              instruccionEl.textContent = enr.instruccion || 'Mirada al frente';
+            }
+
+            const feedbackEl = document.getElementById('hud-guiado-feedback');
+            if (feedbackEl) {
+              feedbackEl.textContent = enr.mensaje || 'Mantenga el rostro centrado hacia la cámara';
+              feedbackEl.style.color = enr.coincide ? '#10b981' : '#f59e0b';
+            }
+
+            // Elipse de progreso SVG (perímetro aproximado = 600)
+            const elipseProg = document.getElementById('hud-oval-progreso');
+            if (elipseProg) {
+              const ratio = Math.max(0.0, Math.min(1.0, enr.progreso_sostener || 0));
+              const perimetro = 600;
+              elipseProg.style.strokeDasharray = `${perimetro}`;
+              elipseProg.style.strokeDashoffset = `${perimetro * (1.0 - ratio)}`;
+              elipseProg.style.stroke = ratio >= 0.98 ? '#10b981' : (enr.coincide ? '#38bdf8' : '#f59e0b');
+            }
+
+            // Píldoras de poses requeridas
+            const contPills = document.getElementById('hud-guiado-pills');
+            if (contPills) {
+              const nombresPoses = ['FRENTE', 'DERECHA', 'IZQUIERDA', 'ARRIBA', 'ABAJO'].slice(0, totPasos);
+              const capturadas = enr.muestras_capturadas || 0;
+              contPills.innerHTML = nombresPoses.map((p, idx) => {
+                const esComp = idx < capturadas;
+                const esAct = (idx === (enr.indice_paso || 0));
+                const cls = esComp ? 'hud-pose-pill done' : (esAct ? 'hud-pose-pill active' : 'hud-pose-pill');
+                return `<span class="${cls}">${p}</span>`;
+              }).join('');
+            }
+          } else {
+            hudGuiado.style.display = 'none';
+          }
+        }
+
         // Periférico Serie (Grove LCD 16x2)
         const lcd = st.fichador || {};
         if (lcd.linea1 !== undefined) {
@@ -1854,6 +2087,7 @@
                 <small style="font-family:var(--font-mono); color:var(--muted); margin-left:6px;">${act.minutos_hoy || 0} min hoy</small>
               </td>
               <td style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="btn btn-green btn-sm" onclick="iniciarEnrolamientoGuiado('${pf.nombre}', 5)">Poses guiadas</button>
                 <button class="btn btn-outline btn-sm" onclick="dispararEnrolamiento('${pf.nombre}')">Capturar 5 muestras</button>
                 <button class="btn btn-outline btn-sm" onclick="registrarAccesoManual('${pf.nombre}', '${dentro ? 'salida' : 'entrada'}')">
                   ${dentro ? 'Registrar egreso' : 'Registrar ingreso'}
@@ -1915,6 +2149,15 @@
             </div>
           `).join('');
         }
+
+        // Sincronización Hot-Swap Multi-Resolución
+        const resActiva = st.config_reconocimiento?.resolucion || st.camara_runtime?.resolucion || 160;
+        const badgeRes = document.getElementById('badge-res-activa');
+        if (badgeRes) badgeRes.textContent = `${resActiva}×${resActiva} PX`;
+        const selHs1 = document.getElementById('sel-hotswap-res');
+        if (selHs1 && document.activeElement !== selHs1) selHs1.value = String(resActiva);
+        const selHs2 = document.getElementById('sel-hotswap-res-alta');
+        if (selHs2 && document.activeElement !== selHs2) selHs2.value = String(resActiva);
 
       } catch (e) {
         document.getElementById('lbl-portero').textContent = 'Sin conexión con Portero';

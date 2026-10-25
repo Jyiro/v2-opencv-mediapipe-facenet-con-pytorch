@@ -131,13 +131,22 @@ def test_portero_gestor_idempotencia_jsonl(tmp_path: Path):
 
 def test_sincronizador_pull_servidor(tmp_path: Path):
     """Verifica que el Servidor sincronice por pull desde el Portero hacia SQLite."""
-    # Configurar puerto dinámico libre
+    import portero.servidor_portero as sp
+    from portero.servidor_portero import GestorEventosPortero
+
+    gestor_aislado = GestorEventosPortero(ruta_jsonl=tmp_path / "test_portero_pull.jsonl")
+    repo_aislado_portero = RepositorioLIS(ruta_db=tmp_path / "portero_db.db")
+
+    gestor_orig = sp._gestor_portero
+    repo_orig = sp.repositorio
+
+    sp._gestor_portero = gestor_aislado
+    sp.repositorio = repo_aislado_portero
+
     servidor_http = ServidorPortero(host="127.0.0.1", puerto=8099)
     servidor_http.iniciar()
 
-    from portero.servidor_portero import _gestor_portero
-
-    cursor_previo = _gestor_portero.cursor_actual()
+    cursor_previo = gestor_aislado.cursor_actual()
     (tmp_path / "cursor.txt").write_text(str(cursor_previo), encoding="utf-8")
 
     repo = RepositorioLIS(
@@ -155,7 +164,7 @@ def test_sincronizador_pull_servidor(tmp_path: Path):
     try:
         id_dinamico = f"ev_pull_{uuid.uuid4().hex[:8]}"
         ev = crear_evento("entrada", persona_id="lucas", evento_id=id_dinamico, distancia=0.39)
-        _gestor_portero.registrar_eventos([ev])
+        gestor_aislado.registrar_eventos([ev])
 
         # Pull manual
         cant = sincronizador.sincronizar_ahora()
@@ -177,6 +186,8 @@ def test_sincronizador_pull_servidor(tmp_path: Path):
 
     finally:
         servidor_http.detener()
+        sp._gestor_portero = gestor_orig
+        sp.repositorio = repo_orig
 
 
 def test_protocolo_serie_truncado_y_virtual():
