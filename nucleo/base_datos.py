@@ -1,4 +1,5 @@
 from __future__ import annotations
+import contextlib
 import csv
 import json
 import logging
@@ -7,7 +8,7 @@ import unicodedata
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 import numpy as np
 
 from nucleo.eventos import ahora_iso, derivar_estado
@@ -55,15 +56,21 @@ class RepositorioLIS:
         self._inicializar_esquema()
         self._migrar_caras_csv_si_corresponde()
 
-    def _conectar(self) -> sqlite3.Connection:
+    @contextlib.contextmanager
+    def _conectar(self) -> Iterator[sqlite3.Connection]:
         conn = sqlite3.connect(str(self.ruta_db), timeout=10.0)
         conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys=ON;")
-        return conn
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _inicializar_esquema(self) -> None:
         with self._conectar() as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
             conn.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS personas (
@@ -607,6 +614,18 @@ class RepositorioLIS:
                 return json.loads(fila["valor"])
             except Exception:
                 return defecto or {}
+
+    def leer_todos_estados_runtime(self) -> dict[str, dict[str, Any]]:
+        """Lee todas las claves de estado_runtime en una única consulta SQLite."""
+        resultado: dict[str, dict[str, Any]] = {}
+        with self._conectar() as conn:
+            filas = conn.execute("SELECT clave, valor FROM estado_runtime").fetchall()
+            for f in filas:
+                try:
+                    resultado[f["clave"]] = json.loads(f["valor"])
+                except Exception:
+                    pass
+        return resultado
 
     def solicitar_enrolamiento_camara(
         self,

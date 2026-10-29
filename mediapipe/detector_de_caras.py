@@ -90,6 +90,7 @@ class PipelineReconocimientoLIS:
         self.cooldown_seg: float = float(params.get("cooldown_gesto_segundos", 4.0))
         self.sostener_pose_seg: float = float(params.get("sostener_pose_segundos", 0.5))
         self.proyecto: str = str(params.get("proyecto", "LIS"))
+        self.tiempo_standby_cfg: float = float(params.get("tiempo_standby_segundos", 25.0))
 
         self.mostrar_ventana = mostrar_ventana and bool(cam_cfg.get("mostrar_ventana_local", True))
         self.espejo = bool(cam_cfg.get("espejo", True))
@@ -98,8 +99,13 @@ class PipelineReconocimientoLIS:
         self.fuente_camara = fuente_camara if fuente_camara is not None else (url_stream or int(cam_cfg.get("indice", 0)))
 
         self.repositorio = RepositorioLIS()
-        self.fichador = ClienteFichadorSerie(repositorio=self.repositorio, simular=True)
+        self.fichador = ClienteFichadorSerie(repositorio=self.repositorio)
+        self.fichador.registrar_callback_boton(self._on_boton_hardware)
         self.extractor = ExtractorFaceNetRapido(resolucion=self.resolucion_recorte)
+
+        # Estado de reposo / Standby inteligente
+        self.standby = True
+        self.tiempo_expiracion_standby: float = 0.0
 
         # Diccionario Hot-Swap: {112: {...}, 128: {...}, 160: {...}, 224: {...}}
         self.galerias_por_resolucion: dict[int, dict[str, list[np.ndarray]]] = {}
@@ -293,12 +299,53 @@ class PipelineReconocimientoLIS:
                             self.metodo_comp,
                             margen_separacion=self.margen_separacion,
                         )
+                        era_reconocido = pista.reconocido
                         pista.reconocido = res["reconocido"]
                         pista.nombre = res["nombre"]
                         pista.distancia = res["distancia"]
+                        if pista.reconocido and not era_reconocido and self.nombre_enrolando is None:
+                            ult_ev = self.ultimo_disparo_por_persona.get(pista.nombre, 0.0)
+                            if time.time() - ult_ev > 3.5:
+                                self.fichador.cambiar_rgb(0, 180, 215)
+                                self.fichador.cambiar_rgb(255, 170, 0)  # Ámbar / Amarillo
+                                self.fichador.mostrar_mensaje(f"HOLA {pista.nombre[:11].upper()}", "PALMA:IN PULG:OUT")
 
         self.pistas = nuevas_pistas
         return self.pistas
+
+    def _despertar_sistema(self, segundos: float | None = None) -> None:
+        """Despierta el pipeline del modo Stand-by activando el reconocimiento facial y gestos."""
+        duracion = segundos or self.tiempo_standby_cfg
+        estaba_en_standby = self.standby
+        self.standby = False
+        self.tiempo_expiracion_standby = time.time() + duracion
+        self.repositorio.guardar_estado_runtime("touch_wake", {"activo": False, "t": time.time()})
+        if estaba_en_standby:
+            self.ultimas_manos_mp = None
+            self.ultimas_caras_mp = None
+            self.pistas = []
+            self.fichador.cambiar_rgb(0, 180, 240)  # Celeste activo
+            self.fichador.mostrar_mensaje("CAMARA ACTIVA", "HAGA SU GESTO")
+            self.fichador.sonar_beep("wake")
+            self.banner_feedback = (f"Camara activa ({int(duracion)}s): Muestre palma o pulgar", (0, 200, 255), time.time() + 3.0)
+            logging.info("Sistema despertado por sensor Touch. Ventana activa: %.1f s", duracion)
+
+    def _entrar_en_standby(self) -> None:
+        """Pone el sistema en modo reposo de bajo consumo."""
+        self.standby = True
+        self.tiempo_expiracion_standby = 0.0
+        self.pistas = []
+        self.ultimas_manos_mp = None
+        self.ultimas_caras_mp = None
+        self.banner_feedback = None
+        self.fichador.resetear()
+        self.repositorio.guardar_estado_runtime("touch_wake", {"activo": False, "t": time.time()})
+        logging.info("Sistema en modo Stand-by (reposo). Esperando toque en sensor.")
+
+    def _on_boton_hardware(self, accion: str) -> None:
+        """Maneja eventos físicos enviados por el Arduino (TOUCH en D2)."""
+        if accion == "TOUCH":
+            self._despertar_sistema()
 
     def _limpiar_buffers_alta(self) -> None:
         for r in RESOLUCIONES_SOPORTADAS:
@@ -639,18 +686,79 @@ class PipelineReconocimientoLIS:
                         color_b,
                         ahora_ts + 3.5,
                     )
+                    # Tras confirmar con gesto, programar vuelta a Standby apenas concluya el feedback
+                    self.tiempo_expiracion_standby = min(self.tiempo_expiracion_standby, ahora_ts + 3.5)
                     logging.info("Evento %s registrado para %s (d=%.3f, res=%dpx)", tipo_ev, pista.nombre, pista.distancia, self.resolucion_recorte)
 
     def _dibujar_hud(self, frame_bgr: np.ndarray, fps: float, presentes: dict[str, Any]) -> None:
         fh, fw = frame_bgr.shape[:2]
 
+        if self.standby:
+            # Fondo sólido oscuro en modo reposo (sin mostrar video de cámara por detrás)
+            frame_bgr[:] = (12, 16, 24)
+
+            # Barra superior informativa
+            cv.rectangle(frame_bgr, (0, 0), (fw, 40), (18, 24, 36), -1)
+            cv.putText(
+                frame_bgr,
+                "LIS Vision | ESTADO: MODO REPOSO (STAND-BY) | Sensor listo",
+                (14, 26),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.48,
+                (235, 190, 40),
+                1,
+                cv.LINE_AA,
+            )
+
+            # Tarjeta central destacada
+            card_w, card_h = min(520, fw - 40), 140
+            cx, cy = fw // 2, fh // 2
+            x1, y1 = cx - card_w // 2, cy - card_h // 2
+            x2, y2 = x1 + card_w, y1 + card_h
+
+            cv.rectangle(frame_bgr, (x1, y1), (x2, y2), (20, 26, 38), -1)
+            cv.rectangle(frame_bgr, (x1, y1), (x2, y2), (235, 180, 20), 2)
+
+            cv.putText(
+                frame_bgr,
+                "[ SISTEMA EN REPOSO ]",
+                (cx - 130, y1 + 36),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.66,
+                (245, 205, 50),
+                2,
+                cv.LINE_AA,
+            )
+            cv.putText(
+                frame_bgr,
+                "TOQUE EL SENSOR TACTIL (D2) PARA ACTIVAR",
+                (cx - 215, y1 + 78),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.52,
+                (130, 235, 40),
+                2,
+                cv.LINE_AA,
+            )
+            cv.putText(
+                frame_bgr,
+                "Ventana activa de escaneo biometrico: 25 segundos",
+                (cx - 185, y1 + 114),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.44,
+                (180, 195, 210),
+                1,
+                cv.LINE_AA,
+            )
+            return
+
         overlay = frame_bgr.copy()
         cv.rectangle(overlay, (0, 0), (fw, 44), (18, 24, 38), -1)
         cv.addWeighted(overlay, 0.82, frame_bgr, 0.18, 0, frame_bgr)
 
+        seg_rest = max(0, int(self.tiempo_expiracion_standby - time.time()))
         fuente_corta = str(self.fuente_camara)[:12]
         texto_hdr = (
-            f"LIS Vision | FPS: {fps:.1f} | Res: {self.resolucion_recorte}px | "
+            f"LIS Vision | FPS: {fps:.1f} | Activo: {seg_rest}s | "
             f"Cam: {fuente_corta} | Presentes: {len(presentes)} | d<{self.umbral:.2f}"
         )
         cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.50, (235, 240, 245), 1, cv.LINE_AA)
@@ -743,7 +851,13 @@ class PipelineReconocimientoLIS:
         fps_actual = 25.0
         t_prev = time.perf_counter()
         frame_idx = 0
+        ultimo_ts_ms = 0
         ruta_frame_subido = PROYECTO_DIR / "datos" / "frame_subido.jpg"
+        orden_alta: dict[str, Any] = {}
+        touch_remoto: dict[str, Any] = {}
+        presentes: dict[str, Any] = derivar_estado(
+            self.repositorio.listar_eventos(desde_seq=0, limite=2000)
+        )["presentes"]
 
         with (
             FaceDetector.create_from_options(opciones_caras) as detector_caras,
@@ -752,9 +866,18 @@ class PipelineReconocimientoLIS:
             while True:
                 frame_idx += 1
 
-                if frame_idx % 10 == 0:
-                    self._sincronizar_config_reconocimiento()
-                    orden_cam = self.repositorio.leer_estado_runtime("orden_camara", {})
+                if frame_idx % 8 == 0 or self.nombre_enrolando is not None:
+                    rt_all = self.repositorio.leer_todos_estados_runtime()
+                    orden_alta = rt_all.get("orden_enrolamiento", {})
+                    touch_remoto = rt_all.get("touch_wake", {})
+                    orden_cam = rt_all.get("orden_camara", {})
+                    cfg_rec = rt_all.get("config_reconocimiento", {})
+                    if cfg_rec:
+                        res_sol = int(cfg_rec.get("resolucion", self.resolucion_recorte))
+                        if res_sol in RESOLUCIONES_SOPORTADAS and res_sol != self.resolucion_recorte:
+                            self.resolucion_recorte = res_sol
+                            self.extractor.cambiar_resolucion(res_sol)
+                            self.pistas.clear()
                     fuente_orden = orden_cam.get("fuente")
                     if fuente_orden is not None and str(fuente_orden).strip() != str(self.fuente_camara).strip():
                         logging.info("Cambio de cámara solicitado vía Web: %s -> %s", self.fuente_camara, fuente_orden)
@@ -762,6 +885,11 @@ class PipelineReconocimientoLIS:
                         if cap and cap.isOpened():
                             cap.release()
                         cap = self._abrir_camara()
+
+                if frame_idx % 12 == 1:
+                    presentes = derivar_estado(
+                        self.repositorio.listar_eventos(desde_seq=0, limite=1000)
+                    )["presentes"]
 
                 es_navegador = str(self.fuente_camara).lower() == "navegador"
 
@@ -799,20 +927,53 @@ class PipelineReconocimientoLIS:
                         cv.LINE_AA,
                     )
                     time.sleep(0.05)
-                elif self.espejo and not es_navegador:
-                    frame = cv.flip(frame, 1)
+                else:
+                    if self.espejo and not es_navegador:
+                        frame = cv.flip(frame, 1)
 
                 t_now = time.perf_counter()
                 dt = max(1e-4, t_now - t_prev)
                 t_prev = t_now
                 fps_actual = 0.9 * fps_actual + 0.1 * (1.0 / dt)
 
-                if frame_idx % 30 == 0:
+                if frame_idx % 150 == 0:
                     self._recargar_galerias()
 
-                rgb = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+                if orden_alta.get("activo"):
+                    if self.standby:
+                        self._despertar_sistema(segundos=45.0)
+                elif touch_remoto.get("activo") and self.standby:
+                    touch_remoto["activo"] = False
+                    self.repositorio.guardar_estado_runtime("touch_wake", {"activo": False, "t": time.time()})
+                    self._despertar_sistema(segundos=self.tiempo_standby_cfg)
+
+                # Control de expiración del tiempo activo de Stand-by
+                if not self.standby and not orden_alta.get("activo"):
+                    if time.time() > self.tiempo_expiracion_standby:
+                        self._entrar_en_standby()
+
+                # Si estamos en modo Stand-by: no inferir con redes neuronales (ahorro CPU)
+                if self.standby:
+                    time.sleep(0.08)
+                    self._dibujar_hud(frame, 0.0, presentes)
+                    guardar_frame_jpeg(frame, calidad=75)
+                    if frame_idx % 30 == 0:
+                        try:
+                            ok_jpg, buf = cv.imencode(".jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 75])
+                            if ok_jpg:
+                                guardar_frame_disco_seguro(buf.tobytes(), self.ruta_frame_compartido)
+                        except Exception:
+                            pass
+                    if self.mostrar_ventana:
+                        cv.imshow("LIS - Reconocimiento Facial y Gestos", frame)
+                        if cv.waitKey(1) & 0xFF == 27:
+                            break
+                    continue
+
+                rgb = np.ascontiguousarray(cv.cvtColor(frame, cv.COLOR_BGR2RGB))
                 mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-                ts_ms = int(time.time() * 1000)
+                ts_ms = max(ultimo_ts_ms + 1, int(time.time() * 1000))
+                ultimo_ts_ms = ts_ms
 
                 detector_caras.detect_async(mp_img, ts_ms)
                 reconocedor_manos.recognize_async(mp_img, ts_ms)
@@ -826,17 +987,14 @@ class PipelineReconocimientoLIS:
                 self._actualizar_pistas(frame, cajas)
                 self._procesar_enrolamiento_activo(frame, frame_idx)
 
-                eventos_recientes = self.repositorio.listar_eventos(desde_seq=0, limite=2000)
-                estado_derivado = derivar_estado(eventos_recientes)
-                presentes = estado_derivado["presentes"]
-
                 self._evaluar_gestos_y_eventos(frame, presentes)
                 self._dibujar_hud(frame, fps_actual, presentes)
 
                 if frame_idx % 2 == 0:
+                    guardar_frame_jpeg(frame, calidad=80)
+                if frame_idx % 30 == 0:
                     try:
-                        guardar_frame_jpeg(frame, calidad=82)
-                        ok_jpg, buf = cv.imencode(".jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 82])
+                        ok_jpg, buf = cv.imencode(".jpg", frame, [int(cv.IMWRITE_JPEG_QUALITY), 80])
                         if ok_jpg:
                             guardar_frame_disco_seguro(buf.tobytes(), self.ruta_frame_compartido)
                     except Exception:

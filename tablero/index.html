@@ -1667,7 +1667,7 @@
         osc.connect(gain);
         gain.connect(ctx.destination);
         osc.frequency.value = tipo === 'err' ? 240 : 880;
-        gain.gain.value = 0.06;
+        gain.gain.value = 0.03;
         osc.start();
         setTimeout(() => { osc.stop(); ctx.close(); }, tipo === 'err' ? 260 : 120);
       } catch (e) {}
@@ -1854,7 +1854,10 @@
       actualizarEstado();
     }
 
+    let enCursoEstado = false;
     async function actualizarEstado() {
+      if (enCursoEstado) return;
+      enCursoEstado = true;
       try {
         const r = await fetch('/state');
         const st = await r.json();
@@ -2162,6 +2165,8 @@
       } catch (e) {
         document.getElementById('lbl-portero').textContent = 'Sin conexión con Portero';
         document.getElementById('dot-portero').classList.add('off');
+      } finally {
+        enCursoEstado = false;
       }
     }
 

@@ -30,7 +30,7 @@ RUTA_TABLERO = PROYECTO_DIR / "tablero" / "index.html"
 RUTA_FRAME = PROYECTO_DIR / "datos" / "ultimo_frame.jpg"
 
 repositorio = RepositorioLIS()
-fichador = ClienteFichadorSerie(repositorio=repositorio, simular=True)
+fichador = ClienteFichadorSerie(repositorio=repositorio)
 
 
 class GestorEventosPortero:
@@ -147,6 +147,9 @@ def asegurar_jsonl_sincronizado() -> list[dict[str, Any]]:
     if not RUTA_JSONL.exists():
         RUTA_JSONL.touch()
 
+    eventos_db = repositorio.listar_eventos(desde_seq=0, limite=5000)
+    ids_db: set[str] = {ev["id"] for ev in eventos_db if "id" in ev}
+
     eventos_jsonl: list[dict[str, Any]] = []
     ids_jsonl: set[str] = set()
 
@@ -160,11 +163,12 @@ def asegurar_jsonl_sincronizado() -> list[dict[str, Any]]:
                 if validar_evento(ev) and ev["id"] not in ids_jsonl:
                     eventos_jsonl.append(ev)
                     ids_jsonl.add(ev["id"])
-                    repositorio.registrar_evento(ev)
+                    if ev["id"] not in ids_db:
+                        repositorio.registrar_evento(ev)
+                        ids_db.add(ev["id"])
             except Exception:
                 continue
 
-    eventos_db = repositorio.listar_eventos(desde_seq=0, limite=5000)
     nuevos_para_jsonl = [ev for ev in eventos_db if ev["id"] not in ids_jsonl]
 
     if nuevos_para_jsonl:
@@ -257,19 +261,18 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             estado = derivar_estado(eventos)
             estado["perfiles"] = repositorio.listar_personas()
             estado["catalogo_inventario"] = repositorio.listar_inventario()
-            estado["fichador"] = repositorio.leer_estado_runtime("fichador_lcd", fichador.estado)
-            estado["enrolamiento"] = repositorio.leer_estado_runtime(
+            rt = repositorio.leer_todos_estados_runtime()
+            estado["fichador"] = rt.get("fichador_lcd", fichador.estado)
+            estado["enrolamiento"] = rt.get(
                 "orden_enrolamiento", {"activo": False, "estado": "inactivo"}
             )
-            estado["camara_runtime"] = repositorio.leer_estado_runtime(
+            estado["camara_runtime"] = rt.get(
                 "camara_estado", {"activa": False, "fps": 0.0, "rostros_en_cuadro": 0, "fuente": "0", "resolucion": 160}
             )
-            estado["orden_camara"] = repositorio.leer_estado_runtime(
-                "orden_camara", {"fuente": "0"}
-            )
-            estado["pruebas"] = repositorio.leer_estado_runtime("pruebas_estado", {})
-            estado["pruebas_config"] = repositorio.leer_estado_runtime("pruebas_config", {})
-            estado["config_reconocimiento"] = repositorio.leer_estado_runtime(
+            estado["orden_camara"] = rt.get("orden_camara", {"fuente": "0"})
+            estado["pruebas"] = rt.get("pruebas_estado", {})
+            estado["pruebas_config"] = rt.get("pruebas_config", {})
+            estado["config_reconocimiento"] = rt.get(
                 "config_reconocimiento", {"resolucion": 160, "resoluciones_disponibles": [112, 128, 160, 224]}
             )
             estado["ultimos_eventos"] = list(reversed(eventos[-40:]))
@@ -582,9 +585,6 @@ class ManejadorPortero(BaseHTTPRequestHandler):
 
         if ruta == "/hardware/touch":
             repositorio.guardar_estado_runtime("touch_wake", {"activo": True, "t": ahora_iso()})
-            fichador.cambiar_rgb(16, 185, 129)
-            fichador.mostrar_mensaje("CAMARA ACTIVA", "HAGA SU GESTO")
-            fichador.sonar_beep("ok")
             self._responder_json(200, {"ok": True})
             return
 

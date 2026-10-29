@@ -7,6 +7,11 @@ backend = "auto" # "auto", "dshow" (Windows), "v4l2" (Linux)
 espejo = true
 mostrar_ventana_local = true
 
+[fichador]
+puerto = "auto"  # "auto" detecta /dev/ttyUSB* o /dev/ttyACM* automáticamente
+baudios = 115200
+simular = false
+
 [modelos]
 detector_caras = "blaze_face_short_range.tflite"
 reconocedor_manos = "manos/gesture_recognizer.task"

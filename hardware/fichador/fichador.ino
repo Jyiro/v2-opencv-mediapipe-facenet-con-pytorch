@@ -5,14 +5,10 @@
   Protocolo Serie bidireccional a 115200 baudios.
   Campos separados por '|', terminado en '\n'.
 
-  Conexiones en Grove Base Shield:
-  - I2C:     Grove LCD RGB Backlight (Seeed Studio rgb_lcd)
-  - D2:      Grove Touch Sensor (Sensor táctil capacitivo)
-  - D3:      Grove Button (Pulsador físico)
-  - D4:      Grove Buzzer (Piezoeléctrico)
-  - D5:      Grove LED Azul (DIP)
-  - D6:      Grove LED Verde (DIP)
-  - D7:      Grove LED Rojo (DIP)
+  Conexiones simplificadas en Grove Base Shield:
+  - I2C:     Grove LCD RGB Backlight (Texto y retroiluminación en color)
+  - D2:      Grove Touch Sensor (Despertar del Standby / Llamar atención)
+  - D4:      Grove Buzzer (Melodías amables de 8-bits: Mario Coin, Salida, Wake)
 */
 
 #include <Wire.h>
@@ -21,39 +17,71 @@
 rgb_lcd lcd;
 
 const int PIN_TOUCH = 2;
-const int PIN_BOTON = 3;
 const int PIN_BUZZER = 4;
-const int PIN_LED_AZUL = 5;
-const int PIN_LED_VERDE = 6;
-const int PIN_LED_ROJO = 7;
 
 int estado_touch_prev = LOW;
-int estado_boton_prev = LOW;
-
 String buffer_serial = "";
+
+// Emite una nota con micro-pulsos (~1.5% a 2% de duty cycle)
+// para lograr un volumen suave de escritorio sin ser invasivo.
+void tono_suave(int frec_hz, int duracion_ms) {
+  long periodo_us = 1000000L / frec_hz;
+  long pulso_alto_us = constrain(periodo_us / 55, 8L, 20L);
+  long pulso_bajo_us = periodo_us - pulso_alto_us;
+  long ciclos = ((long)duracion_ms * 1000L) / periodo_us;
+
+  for (long i = 0; i < ciclos; i++) {
+    digitalWrite(PIN_BUZZER, HIGH);
+    delayMicroseconds(pulso_alto_us);
+    digitalWrite(PIN_BUZZER, LOW);
+    delayMicroseconds(pulso_bajo_us);
+  }
+}
+
+void sonar_mario_in() {
+  tono_suave(988, 70);   // Si 5
+  delay(10);
+  tono_suave(1319, 240); // Mi 6 (Moneda de Mario)
+}
+
+void sonar_checkout_out() {
+  tono_suave(392, 90);   // Sol 4
+  delay(10);
+  tono_suave(262, 210);  // Do 4 (Descenso cálido)
+}
+
+void sonar_wake() {
+  tono_suave(523, 30);   // Do 5 (Chirp suave)
+  delay(8);
+  tono_suave(659, 45);   // Mi 5
+}
+
+void sonar_err() {
+  tono_suave(220, 100);  // La 3 (Basso / Fallo de caricatura)
+  delay(15);
+  tono_suave(165, 190);  // Mi 3
+}
+
+void sonar_warn() {
+  tono_suave(440, 80);
+}
 
 void setup() {
   Serial.begin(115200);
 
   pinMode(PIN_TOUCH, INPUT);
-  pinMode(PIN_BOTON, INPUT);
   pinMode(PIN_BUZZER, OUTPUT);
-  pinMode(PIN_LED_AZUL, OUTPUT);
-  pinMode(PIN_LED_VERDE, OUTPUT);
-  pinMode(PIN_LED_ROJO, OUTPUT);
 
   // Inicializar LCD RGB Grove (I2C)
   lcd.begin(16, 2);
-  lcd.setRGB(0, 120, 255); // Azul LIS inicial
+  lcd.setRGB(10, 60, 150); // Azul visible (Modo Reposo)
   lcd.setCursor(0, 0);
-  lcd.print("LIS Control");
+  lcd.print("UTN FRC - LIS   ");
   lcd.setCursor(0, 1);
-  lcd.print("Iniciando...");
+  lcd.print("TOQUE EL SENSOR ");
 
-  // Bip inicial
-  digitalWrite(PIN_BUZZER, HIGH);
-  delay(100);
-  digitalWrite(PIN_BUZZER, LOW);
+  // Saludo sonoro sutil de arranque
+  sonar_wake();
 }
 
 void loop() {
@@ -74,24 +102,15 @@ void loop() {
   int touch_actual = digitalRead(PIN_TOUCH);
   if (touch_actual == HIGH && estado_touch_prev == LOW) {
     Serial.println("TOUCH");
-    delay(50); // Antirrebote
+    delay(60); // Antirrebote
   }
   estado_touch_prev = touch_actual;
-
-  // 3. Detección de Botón Físico (D3)
-  int boton_actual = digitalRead(PIN_BOTON);
-  if (boton_actual == HIGH && estado_boton_prev == LOW) {
-    Serial.println("BTN");
-    delay(50); // Antirrebote
-  }
-  estado_boton_prev = boton_actual;
 }
 
 void procesar_comando(String cmd) {
   cmd.trim();
   int primer_sep = cmd.indexOf('|');
   String accion = (primer_sep == -1) ? cmd : cmd.substring(0, primer_sep);
-
   accion.toUpperCase();
 
   if (accion == "PING") {
@@ -130,35 +149,16 @@ void procesar_comando(String cmd) {
   else if (accion == "BEEP") {
     String tipo = cmd.substring(primer_sep + 1);
     tipo.toLowerCase();
-    if (tipo == "ok") {
-      digitalWrite(PIN_BUZZER, HIGH);
-      delay(80);
-      digitalWrite(PIN_BUZZER, LOW);
-      delay(40);
-      digitalWrite(PIN_BUZZER, HIGH);
-      delay(120);
-      digitalWrite(PIN_BUZZER, LOW);
+    if (tipo == "in" || tipo == "ok") {
+      sonar_mario_in();
+    } else if (tipo == "out") {
+      sonar_checkout_out();
+    } else if (tipo == "wake") {
+      sonar_wake();
     } else if (tipo == "err") {
-      digitalWrite(PIN_BUZZER, HIGH);
-      delay(400);
-      digitalWrite(PIN_BUZZER, LOW);
+      sonar_err();
     } else if (tipo == "warn") {
-      digitalWrite(PIN_BUZZER, HIGH);
-      delay(150);
-      digitalWrite(PIN_BUZZER, LOW);
-    }
-  }
-  else if (accion == "LED") {
-    int sep2 = cmd.indexOf('|', primer_sep + 1);
-    if (primer_sep != -1 && sep2 != -1) {
-      String color = cmd.substring(primer_sep + 1, sep2);
-      int val = cmd.substring(sep2 + 1).toInt();
-      color.toLowerCase();
-      int estado_pin = (val == 1) ? HIGH : LOW;
-
-      if (color == "azul") digitalWrite(PIN_LED_AZUL, estado_pin);
-      else if (color == "verde") digitalWrite(PIN_LED_VERDE, estado_pin);
-      else if (color == "rojo") digitalWrite(PIN_LED_ROJO, estado_pin);
+      sonar_warn();
     }
   }
 }
