@@ -1195,6 +1195,70 @@
     @media (prefers-reduced-motion: reduce) {
       * { transition: none !important; animation: none !important; }
     }
+
+    /* Modal Teclado Numérico Táctil (Kiosco Tablet) */
+    .pin-modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: rgba(8, 11, 18, 0.82);
+      backdrop-filter: blur(4px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .pin-modal-backdrop.abierto { display: flex; }
+    .pin-modal-card {
+      width: 100%;
+      max-width: 390px;
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-top: 3px solid var(--accent);
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+    .pin-display-box {
+      font-family: var(--font-mono);
+      font-size: 1.7rem;
+      letter-spacing: 0.35em;
+      text-align: center;
+      padding: 12px 10px;
+      background: var(--surface-alt);
+      border: 1px solid var(--border);
+      min-height: 54px;
+      color: var(--ink);
+      user-select: none;
+    }
+    .pin-numpad-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+    .pin-key-btn {
+      min-height: 56px;
+      font-family: var(--font-mono);
+      font-size: 1.25rem;
+      font-weight: 700;
+      background: var(--surface-alt);
+      color: var(--ink);
+      border: 1px solid var(--border-strong);
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+      transition: background 0.1s ease, transform 0.06s ease;
+    }
+    .pin-key-btn:active {
+      background: var(--accent-soft);
+      transform: scale(0.97);
+    }
+    .pin-key-btn.key-fn {
+      font-size: 0.88rem;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -1280,8 +1344,11 @@
           <button class="tab-btn" onclick="cambiarVista('puerta', this)">
             <span class="tab-idx">04</span>Terminal PIN y Sensores
           </button>
+          <button class="tab-btn" onclick="cambiarVista('estadisticas', this)">
+            <span class="tab-idx">05</span>Estadísticas
+          </button>
           <button class="tab-btn" onclick="cambiarVista('acerca', this)">
-            <span class="tab-idx">05</span>Acerca de
+            <span class="tab-idx">06</span>Acerca de
           </button>
         </nav>
 
@@ -1359,7 +1426,10 @@
                 <span class="panel-code">FIG_001</span>
                 <span class="panel-title">Estación de Visión · MediaPipe + FaceNet</span>
               </div>
-              <button class="btn btn-outline btn-sm" onclick="tocarSensorTouch()">[ SENSOR TÁCTIL ]</button>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="btn btn-outline btn-sm" onclick="abrirModalPin()">[ FICHAR CON PIN ]</button>
+                <button class="btn btn-outline btn-sm" onclick="tocarSensorTouch()">[ SENSOR TÁCTIL ]</button>
+              </div>
             </div>
 
             <div class="panel-body">
@@ -1548,8 +1618,8 @@
                   </select>
                 </div>
                 <div class="field-group">
-                  <label class="field-label" for="inp-pin">PIN de respaldo (4 a 6 dígitos)</label>
-                  <input id="inp-pin" type="password" maxlength="6" value="1234" />
+                  <label class="field-label" for="inp-pin">PIN personal (4 a 12 dígitos)</label>
+                  <input id="inp-pin" type="password" maxlength="12" value="1234" />
                 </div>
               </div>
               <label style="display:flex; align-items:flex-start; gap:8px; font-size:0.82rem; color:var(--text-secondary); cursor:pointer; padding:4px 0;">
@@ -1685,12 +1755,12 @@
               </p>
               <div class="form-grid">
                 <div class="field-group">
-                  <label class="field-label" for="sel-persona-pin">Integrante</label>
+                  <label class="field-label" for="sel-persona-pin">Integrante (opcional)</label>
                   <select id="sel-persona-pin"></select>
                 </div>
                 <div class="field-group">
-                  <label class="field-label" for="inp-auth-pin">Código PIN</label>
-                  <input id="inp-auth-pin" type="password" placeholder="••••" />
+                  <label class="field-label" for="inp-auth-pin">Código PIN (4 a 12 dígitos)</label>
+                  <input id="inp-auth-pin" type="password" maxlength="12" placeholder="••••" />
                 </div>
                 <div class="field-group">
                   <label class="field-label" for="sel-origen-pin">Terminal de origen</label>
@@ -1741,7 +1811,218 @@
         </div>
       </section>
 
-      <!-- VISTA 05: ACERCA DE (MANUAL EDITORIAL & ARQUITECTURA ISOMÉTRICA) -->
+      <!-- VISTA 05: ESTADÍSTICAS Y MÉTRICAS DE ASISTENCIA (MOCKUP) -->
+      <section id="vista-estadisticas" class="view">
+        <div class="panel" style="margin-bottom: 18px;">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-code">EST_001</span>
+              <span class="panel-title">Analítica de Asistencia, Permanencia y Uso del Laboratorio</span>
+            </div>
+            <span class="badge badge-amber">[ VISTA PREVIA · DATOS MOCK ]</span>
+          </div>
+          <div class="panel-body">
+            <div class="metrics-strip" style="margin-bottom: 16px;">
+              <div class="metric-cell">
+                <div class="metric-label">HORAS ACUMULADAS (MES)</div>
+                <div class="metric-value">312.5 h</div>
+                <div class="metric-sub">+14% respecto al mes anterior</div>
+              </div>
+              <div class="metric-cell">
+                <div class="metric-label">PERMANENCIA PROMEDIO</div>
+                <div class="metric-value">3h 42m</div>
+                <div class="metric-sub">Por jornada presencial registrada</div>
+              </div>
+              <div class="metric-cell">
+                <div class="metric-label">FRANJA PICO</div>
+                <div class="metric-value">15:00–18:00</div>
+                <div class="metric-sub">Media de 6 integrantes simultáneos</div>
+              </div>
+              <div class="metric-cell">
+                <div class="metric-label">MÉTODO DE FICHAJE</div>
+                <div class="metric-value">89% Facial</div>
+                <div class="metric-sub">11% respaldo por PIN táctil</div>
+              </div>
+            </div>
+
+            <div class="grid-dashboard" style="grid-template-columns: 1fr 1fr; gap: 18px;">
+              <!-- Gráfico 1: Barras Semanales -->
+              <div class="panel">
+                <div class="panel-header">
+                  <div class="panel-title-group">
+                    <span class="panel-code">FIG_E01</span>
+                    <span class="panel-title">Horas Registradas por Día (Última Semana)</span>
+                  </div>
+                  <span class="badge badge-blue">[ LUN — SÁB ]</span>
+                </div>
+                <div class="panel-body">
+                  <svg viewBox="0 0 420 190" style="width:100%; height:auto; display:block;" role="img" aria-label="Gráfico de barras de horas semanales">
+                    <line x1="36" y1="20" x2="36" y2="155" stroke="currentColor" stroke-opacity="0.25" />
+                    <line x1="36" y1="155" x2="404" y2="155" stroke="currentColor" stroke-opacity="0.35" />
+                    <line x1="36" y1="110" x2="404" y2="110" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+                    <line x1="36" y1="65" x2="404" y2="65" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+                    <text x="8" y="158" font-size="9" fill="currentColor" opacity="0.6" font-family="monospace">0h</text>
+                    <text x="4" y="113" font-size="9" fill="currentColor" opacity="0.6" font-family="monospace">15h</text>
+                    <text x="4" y="68" font-size="9" fill="currentColor" opacity="0.6" font-family="monospace">30h</text>
+                    <!-- Lun 18h -->
+                    <rect x="52" y="101" width="36" height="54" fill="#38bdf8" fill-opacity="0.85" />
+                    <text x="60" y="95" font-size="9" fill="currentColor" font-family="monospace">18h</text>
+                    <text x="61" y="172" font-size="10" fill="currentColor" opacity="0.75" font-family="monospace">LUN</text>
+                    <!-- Mar 24h -->
+                    <rect x="110" y="83" width="36" height="72" fill="#38bdf8" fill-opacity="0.85" />
+                    <text x="118" y="77" font-size="9" fill="currentColor" font-family="monospace">24h</text>
+                    <text x="119" y="172" font-size="10" fill="currentColor" opacity="0.75" font-family="monospace">MAR</text>
+                    <!-- Mie 29h -->
+                    <rect x="168" y="68" width="36" height="87" fill="#10b981" fill-opacity="0.9" />
+                    <text x="176" y="62" font-size="9" fill="currentColor" font-family="monospace">29h</text>
+                    <text x="177" y="172" font-size="10" fill="currentColor" opacity="0.75" font-family="monospace">MIÉ</text>
+                    <!-- Jue 26h -->
+                    <rect x="226" y="77" width="36" height="78" fill="#38bdf8" fill-opacity="0.85" />
+                    <text x="234" y="71" font-size="9" fill="currentColor" font-family="monospace">26h</text>
+                    <text x="235" y="172" font-size="10" fill="currentColor" opacity="0.75" font-family="monospace">JUE</text>
+                    <!-- Vie 21h -->
+                    <rect x="284" y="92" width="36" height="63" fill="#38bdf8" fill-opacity="0.85" />
+                    <text x="292" y="86" font-size="9" fill="currentColor" font-family="monospace">21h</text>
+                    <text x="293" y="172" font-size="10" fill="currentColor" opacity="0.75" font-family="monospace">VIE</text>
+                    <!-- Sab 7h -->
+                    <rect x="342" y="134" width="36" height="21" fill="#f59e0b" fill-opacity="0.8" />
+                    <text x="352" y="128" font-size="9" fill="currentColor" font-family="monospace">7h</text>
+                    <text x="351" y="172" font-size="10" fill="currentColor" opacity="0.75" font-family="monospace">SÁB</text>
+                  </svg>
+                </div>
+              </div>
+
+              <!-- Gráfico 2: Curva de Ocupación Horaria -->
+              <div class="panel">
+                <div class="panel-header">
+                  <div class="panel-title-group">
+                    <span class="panel-code">FIG_E02</span>
+                    <span class="panel-title">Curva de Ocupación Promedio por Hora</span>
+                  </div>
+                  <span class="badge badge-green">[ 08:00 — 21:00 ]</span>
+                </div>
+                <div class="panel-body">
+                  <svg viewBox="0 0 420 190" style="width:100%; height:auto; display:block;" role="img" aria-label="Curva de ocupación horaria del laboratorio">
+                    <line x1="36" y1="20" x2="36" y2="155" stroke="currentColor" stroke-opacity="0.25" />
+                    <line x1="36" y1="155" x2="404" y2="155" stroke="currentColor" stroke-opacity="0.35" />
+                    <line x1="36" y1="100" x2="404" y2="100" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+                    <line x1="36" y1="45" x2="404" y2="45" stroke="currentColor" stroke-opacity="0.1" stroke-dasharray="3 3" />
+                    <text x="12" y="158" font-size="9" fill="currentColor" opacity="0.6" font-family="monospace">0</text>
+                    <text x="12" y="103" font-size="9" fill="currentColor" opacity="0.6" font-family="monospace">4</text>
+                    <text x="12" y="48" font-size="9" fill="currentColor" opacity="0.6" font-family="monospace">8</text>
+                    <polygon points="48,155 48,142 96,125 144,98 192,110 240,70 288,48 336,64 384,122 384,155" fill="#10b981" fill-opacity="0.18" />
+                    <polyline points="48,142 96,125 144,98 192,110 240,70 288,48 336,64 384,122" fill="none" stroke="#10b981" stroke-width="2.5" />
+                    <circle cx="288" cy="48" r="4" fill="#10b981" />
+                    <text x="272" y="37" font-size="9" fill="#10b981" font-family="monospace">PICO (7)</text>
+                    <text x="38" y="172" font-size="9" fill="currentColor" opacity="0.7" font-family="monospace">08h</text>
+                    <text x="134" y="172" font-size="9" fill="currentColor" opacity="0.7" font-family="monospace">12h</text>
+                    <text x="230" y="172" font-size="9" fill="currentColor" opacity="0.7" font-family="monospace">16h</text>
+                    <text x="326" y="172" font-size="9" fill="currentColor" opacity="0.7" font-family="monospace">19h</text>
+                    <text x="374" y="172" font-size="9" fill="currentColor" opacity="0.7" font-family="monospace">21h</text>
+                  </svg>
+                </div>
+              </div>
+            </div>
+
+            <div class="grid-dashboard" style="grid-template-columns: 1fr 1.3fr; gap: 18px; margin-top: 18px;">
+              <!-- Desglose por Método y Proyecto -->
+              <div class="panel">
+                <div class="panel-header">
+                  <div class="panel-title-group">
+                    <span class="panel-code">FIG_E03</span>
+                    <span class="panel-title">Distribución por Método y Dedicación</span>
+                  </div>
+                </div>
+                <div class="panel-body" style="display:flex; flex-direction:column; gap:12px;">
+                  <div>
+                    <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.76rem; margin-bottom:4px;">
+                      <span>Cara + Gesto (Biometría)</span><strong>89%</strong>
+                    </div>
+                    <div style="height:10px; background:var(--surface-alt); border:1px solid var(--border);">
+                      <div style="width:89%; height:100%; background:var(--ok);"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.76rem; margin-bottom:4px;">
+                      <span>PIN Táctil (Tablet)</span><strong>11%</strong>
+                    </div>
+                    <div style="height:10px; background:var(--surface-alt); border:1px solid var(--border);">
+                      <div style="width:11%; height:100%; background:var(--accent);"></div>
+                    </div>
+                  </div>
+                  <div style="border-top:1px solid var(--border); padding-top:10px;">
+                    <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.76rem; margin-bottom:4px;">
+                      <span>Proyecto LIS · Investigación</span><strong>64%</strong>
+                    </div>
+                    <div style="height:10px; background:var(--surface-alt); border:1px solid var(--border);">
+                      <div style="width:64%; height:100%; background:#38bdf8;"></div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:0.76rem; margin-bottom:4px;">
+                      <span>Becas / Prácticas / Tesinas</span><strong>36%</strong>
+                    </div>
+                    <div style="height:10px; background:var(--surface-alt); border:1px solid var(--border);">
+                      <div style="width:36%; height:100%; background:#f59e0b;"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Tabla Mock por Integrante -->
+              <div class="panel">
+                <div class="panel-header">
+                  <div class="panel-title-group">
+                    <span class="panel-code">FIG_E04</span>
+                    <span class="panel-title">Resumen de Carga Horaria (Ejemplo)</span>
+                  </div>
+                  <span class="badge badge-amber">[ MOCK ]</span>
+                </div>
+                <div class="panel-body" style="padding:0;">
+                  <table class="data-table">
+                    <thead>
+                      <tr>
+                        <th>Integrante</th>
+                        <th>Días</th>
+                        <th>Horas Mes</th>
+                        <th>Último método</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr>
+                        <td><strong>Ceballos, Jonas</strong></td>
+                        <td>14</td>
+                        <td>52.4 h</td>
+                        <td><span class="badge badge-green">Cara+Gesto</span></td>
+                      </tr>
+                      <tr>
+                        <td><strong>Pérez, Sofía</strong></td>
+                        <td>12</td>
+                        <td>44.0 h</td>
+                        <td><span class="badge badge-green">Cara+Gesto</span></td>
+                      </tr>
+                      <tr>
+                        <td><strong>Gómez, Lucas</strong></td>
+                        <td>10</td>
+                        <td>38.5 h</td>
+                        <td><span class="badge badge-blue">PIN Táctil</span></td>
+                      </tr>
+                      <tr>
+                        <td><strong>Martínez, Ana</strong></td>
+                        <td>9</td>
+                        <td>31.2 h</td>
+                        <td><span class="badge badge-green">Cara+Gesto</span></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- VISTA 06: ACERCA DE (MANUAL EDITORIAL & ARQUITECTURA ISOMÉTRICA) -->
       <section id="vista-acerca" class="view">
         <div class="panel" style="margin-bottom: 18px;">
           <div class="panel-header">
@@ -2039,14 +2320,14 @@
                 <span class="panel-code">CAP_03</span>
                 <span class="panel-title">Origen Académico y Contexto del Proyecto</span>
               </div>
-              <span class="badge badge-amber">[ UTN FRC · BECA GAALA ]</span>
+              <span class="badge badge-blue">[ UTN FRC · LIS ]</span>
             </div>
             <div class="panel-body">
               <p class="editorial-lead">
                 LIS-FaceNet nació de una necesidad concreta dentro del <strong>Laboratorio de Investigación de Software (LIS)</strong>, perteneciente al Departamento de Ingeniería en Sistemas de Información de la <strong>Universidad Tecnológica Nacional — Facultad Regional Córdoba (UTN FRC)</strong>.
               </p>
               <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin-top: 4px;">
-                Desarrollado en el marco de la <strong>Beca GAALA</strong> (<em>Gestión Automatizada de Asistencia en Laboratorios Académicos</em>), el proyecto evolucionó desde sus primeras pruebas de concepto monolíticas en Python con OpenCV tradicional hacia una arquitectura desacoplada de microservicios de borde.
+                El proyecto evolucionó desde sus primeras pruebas de concepto monolíticas en Python con OpenCV tradicional hacia una arquitectura desacoplada de microservicios de borde pensada para el uso cotidiano en el laboratorio.
               </p>
               <div style="padding: 10px 12px; background: var(--surface-alt); border: 1px solid var(--border); margin: 8px 0;">
                 <div style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; color: var(--accent); text-transform: uppercase;">
@@ -2110,6 +2391,39 @@
         <div class="ms-dither-strip"></div>
       </footer>
     </main>
+  </div>
+
+  <!-- MODAL TECLADO NUMÉRICO TÁCTIL (KIOSCO TABLET) -->
+  <div id="modal-pin-kiosco" class="pin-modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-pin-titulo">
+    <div class="pin-modal-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span id="modal-pin-titulo" style="font-family:var(--font-mono); font-size:0.84rem; font-weight:700; letter-spacing:0.08em;">FICHADO RÁPIDO POR PIN</span>
+        <button class="btn btn-outline btn-sm" onclick="cerrarModalPin()">CERRAR</button>
+      </div>
+      <div style="font-size:0.78rem; color:var(--text-secondary);">
+        Ingresá tu PIN personal (4 a 12 dígitos); el sistema identifica automáticamente quién sos.
+      </div>
+      <div id="modal-pin-display" class="pin-display-box" style="letter-spacing:0.22em; font-size:1.45rem;">----</div>
+      <div class="pin-numpad-grid">
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('1')">1</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('2')">2</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('3')">3</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('4')">4</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('5')">5</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('6')">6</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('7')">7</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('8')">8</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('9')">9</button>
+        <button type="button" class="pin-key-btn key-fn" onclick="teclaModalPin('CLR')">LIMPIAR</button>
+        <button type="button" class="pin-key-btn" onclick="teclaModalPin('0')">0</button>
+        <button type="button" class="pin-key-btn key-fn" onclick="teclaModalPin('DEL')">BORRAR</button>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <button type="button" class="btn btn-green" style="flex:1; min-height:48px; font-size:0.88rem;" onclick="enviarPinKiosco('entrada')">ENTRADA</button>
+        <button type="button" class="btn btn-outline" style="flex:1; min-height:48px; font-size:0.88rem;" onclick="enviarPinKiosco('salida')">SALIDA</button>
+      </div>
+      <div id="modal-pin-msg" style="font-family:var(--font-mono); font-size:0.78rem; font-weight:600; min-height:18px; text-align:center;"></div>
+    </div>
   </div>
 
   <script>
@@ -2581,6 +2895,61 @@
       actualizarEstado();
     }
 
+    let _pinKioscoValor = '';
+    function _renderDisplayPinKiosco() {
+      const disp = document.getElementById('modal-pin-display');
+      if (disp) disp.textContent = _pinKioscoValor.length ? '•'.repeat(_pinKioscoValor.length) : '----';
+    }
+    function abrirModalPin() {
+      _pinKioscoValor = '';
+      _renderDisplayPinKiosco();
+      const msg = document.getElementById('modal-pin-msg');
+      if (msg) msg.textContent = '';
+      const modal = document.getElementById('modal-pin-kiosco');
+      if (modal) modal.classList.add('abierto');
+    }
+    function cerrarModalPin() {
+      const modal = document.getElementById('modal-pin-kiosco');
+      if (modal) modal.classList.remove('abierto');
+    }
+    function teclaModalPin(tecla) {
+      if (tecla === 'CLR') {
+        _pinKioscoValor = '';
+      } else if (tecla === 'DEL') {
+        _pinKioscoValor = _pinKioscoValor.slice(0, -1);
+      } else if (_pinKioscoValor.length < 12) {
+        _pinKioscoValor += String(tecla);
+      }
+      _renderDisplayPinKiosco();
+    }
+    async function enviarPinKiosco(tipo) {
+      const box = document.getElementById('modal-pin-msg');
+      if (!_pinKioscoValor) {
+        box.style.color = 'var(--warn)';
+        box.textContent = 'Ingresá tu código PIN con el teclado.';
+        return;
+      }
+      const res = await apiPost('/auth/pin', {
+        pin: _pinKioscoValor,
+        tipo,
+        origen: 'tablet-puerta',
+        metodo: 'pin',
+      });
+      if (res.ok) {
+        box.style.color = 'var(--ok)';
+        box.textContent = `[OK] ${tipo.toUpperCase()} registrada: ${res.perfil.nombre}`;
+        _pinKioscoValor = '';
+        _renderDisplayPinKiosco();
+        actualizarEstado();
+        setTimeout(cerrarModalPin, 1400);
+      } else {
+        box.style.color = 'var(--bad)';
+        box.textContent = `[ERROR] ${res.error || 'PIN incorrecto'}`;
+        _pinKioscoValor = '';
+        _renderDisplayPinKiosco();
+      }
+    }
+
     async function registrarMovimientoInventario(tipo, objetoIdForzado) {
       const persona_id = document.getElementById('sel-persona-inv').value;
       const objeto_id = objetoIdForzado || document.getElementById('sel-objeto-inv').value;
@@ -2886,9 +3255,9 @@
         // Actualizar selectores
         const selPin = document.getElementById('sel-persona-pin');
         const selInvP = document.getElementById('sel-persona-inv');
-        if (selPin.options.length !== perfiles.length) {
+        if (selPin.options.length !== perfiles.length + 1) {
           const opts = perfiles.map(p => `<option value="${p.nombre}">${p.nombre}</option>`).join('');
-          selPin.innerHTML = opts;
+          selPin.innerHTML = `<option value="">Detectar automáticamente por PIN</option>` + opts;
           selInvP.innerHTML = opts;
         }
 

@@ -927,6 +927,8 @@ class PipelineReconocimientoLIS:
         t_prev = time.perf_counter()
         frame_idx = 0
         ultimo_ts_ms = 0
+        fallos_camara = 0
+        ultimo_reintento_cam = 0.0
         ruta_frame_subido = PROYECTO_DIR / "datos" / "frame_subido.jpg"
         orden_alta: dict[str, Any] = {}
         touch_remoto: dict[str, Any] = {}
@@ -987,6 +989,19 @@ class PipelineReconocimientoLIS:
                         ok, frame = False, None
                 else:
                     ok, frame = cap.read() if (cap and cap.isOpened()) else (False, None)
+                    if ok and frame is not None:
+                        if fallos_camara >= 5:
+                            logging.info("Cámara reconectada exitosamente en %s.", self.fuente_camara)
+                        fallos_camara = 0
+                    else:
+                        fallos_camara += 1
+                        if fallos_camara >= 10 and (time.time() - ultimo_reintento_cam) >= 4.0:
+                            ultimo_reintento_cam = time.time()
+                            logging.warning("Señal de cámara perdida (%s); reintentando reconexión...", self.fuente_camara)
+                            if cap and cap.isOpened():
+                                cap.release()
+                            cap = self._abrir_camara()
+                            fallos_camara = 0
 
                 if not ok or frame is None:
                     frame = np.full((480, 640, 3), (18, 20, 26), dtype=np.uint8)

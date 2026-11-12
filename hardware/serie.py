@@ -84,6 +84,8 @@ class ClienteFichadorSerie:
         else:
             puerto_resuelto = puerto_cfg
 
+        self._forzar_simulado = usar_simulado
+        self._puerto_cfg = puerto_cfg
         self.puerto = puerto_resuelto
         self.baudios = int(cfg.get("baudios", baudios))
         self.modo_simulado = True
@@ -100,61 +102,96 @@ class ClienteFichadorSerie:
             "ultimo_comando": "INIT",
         }
 
-        if not usar_simulado and self.puerto:
-            with _LOCK_SERIE:
-                if _SERIAL_COMPARTIDO is not None and getattr(_SERIAL_COMPARTIDO, "is_open", False):
-                    self._serial = _SERIAL_COMPARTIDO
-                    self.puerto = _PUERTO_ACTIVO
+        if not self._forzar_simulado:
+            if self._intentar_conectar_serie():
+                self.resetear()
+            if _HILO_LECTOR is None or not _HILO_LECTOR.is_alive():
+                _HILO_LECTOR = threading.Thread(target=self._bucle_lectura_serie, daemon=True)
+                _HILO_LECTOR.start()
+
+        self._persistir()
+
+    def _intentar_conectar_serie(self) -> bool:
+        """Intenta abrir el puerto serie (o reutilizar el compartido) y validar PING/PONG."""
+        global _SERIAL_COMPARTIDO, _PUERTO_ACTIVO
+
+        if self._forzar_simulado:
+            return False
+
+        puerto_obj = self._puerto_cfg
+        if puerto_obj.lower() in ("auto", ""):
+            puerto_obj = detectar_puerto_arduino() or ""
+        if not puerto_obj:
+            return False
+
+        with _LOCK_SERIE:
+            if _SERIAL_COMPARTIDO is not None and getattr(_SERIAL_COMPARTIDO, "is_open", False):
+                self._serial = _SERIAL_COMPARTIDO
+                self.puerto = _PUERTO_ACTIVO
+                self.modo_simulado = False
+                self.estado["conectado_fisico"] = True
+                self.estado["modo_simulado"] = False
+                self.estado["puerto"] = self.puerto
+                return True
+
+            try:
+                import serial  # type: ignore
+
+                ser = serial.Serial(puerto_obj, self.baudios, timeout=0.25)
+                # Al abrir el puerto serie en Linux, DTR reinicia el bootloader del Arduino UNO (~1.6s)
+                conectado = False
+                fin_espera = time.time() + 3.0
+                time.sleep(1.7)
+                ser.reset_input_buffer()
+                while time.time() < fin_espera:
+                    ser.write(b"PING\n")
+                    ser.flush()
+                    resp = ser.readline().decode("ascii", errors="ignore").strip()
+                    if resp == "PONG":
+                        conectado = True
+                        break
+                    time.sleep(0.2)
+
+                if conectado:
+                    _SERIAL_COMPARTIDO = ser
+                    _PUERTO_ACTIVO = puerto_obj
+                    self._serial = ser
+                    self.puerto = puerto_obj
                     self.modo_simulado = False
                     self.estado["conectado_fisico"] = True
                     self.estado["modo_simulado"] = False
                     self.estado["puerto"] = self.puerto
-                else:
-                    try:
-                        import serial  # type: ignore
+                    logging.info("Fichador Arduino físico conectado en %s (%d baudios)", self.puerto, self.baudios)
+                    return True
+                logging.warning("Arduino no respondió PONG en %s; usando modo simulado.", puerto_obj)
+                ser.close()
+            except Exception as exc:
+                if self.estado.get("ultimo_comando") == "INIT":
+                    logging.info(
+                        "Puerto serie %s no disponible (%s); degradando a modo simulado. "
+                        "(Recordá cerrar el Serial Monitor de Arduino IDE si estaba abierto).",
+                        puerto_obj,
+                        exc,
+                    )
+                self.modo_simulado = True
+                self.estado["conectado_fisico"] = False
+                self.estado["modo_simulado"] = True
+        return False
 
-                        ser = serial.Serial(self.puerto, self.baudios, timeout=0.25)
-                        # Al abrir el puerto serie en Linux, DTR reinicia el bootloader del Arduino UNO (~1.6s)
-                        conectado = False
-                        fin_espera = time.time() + 3.0
-                        time.sleep(1.7)
-                        ser.reset_input_buffer()
-                        while time.time() < fin_espera:
-                            ser.write(b"PING\n")
-                            ser.flush()
-                            resp = ser.readline().decode("ascii", errors="ignore").strip()
-                            if resp == "PONG":
-                                conectado = True
-                                break
-                            time.sleep(0.2)
-
-                        if conectado:
-                            _SERIAL_COMPARTIDO = ser
-                            _PUERTO_ACTIVO = self.puerto
-                            self._serial = ser
-                            self.modo_simulado = False
-                            self.estado["conectado_fisico"] = True
-                            self.estado["modo_simulado"] = False
-                            self.estado["puerto"] = self.puerto
-                            logging.info("Fichador Arduino físico conectado en %s (%d baudios)", self.puerto, self.baudios)
-                        else:
-                            logging.warning("Arduino no respondió PONG en %s; usando modo simulado.", self.puerto)
-                            ser.close()
-                    except Exception as exc:
-                        logging.info(
-                            "Puerto serie %s no disponible (%s); degradando a modo simulado. "
-                            "(Recordá cerrar el Serial Monitor de Arduino IDE si estaba abierto).",
-                            self.puerto,
-                            exc,
-                        )
-                        self.modo_simulado = True
-
-            if not self.modo_simulado:
-                self.resetear()
-                if _HILO_LECTOR is None or not _HILO_LECTOR.is_alive():
-                    _HILO_LECTOR = threading.Thread(target=self._bucle_lectura_serie, daemon=True)
-                    _HILO_LECTOR.start()
-
+    def _marcar_desconexion_serie(self) -> None:
+        global _SERIAL_COMPARTIDO, _PUERTO_ACTIVO
+        with _LOCK_SERIE:
+            if self._serial is not None:
+                try:
+                    self._serial.close()
+                except Exception:
+                    pass
+            _SERIAL_COMPARTIDO = None
+            _PUERTO_ACTIVO = None
+            self._serial = None
+            self.modo_simulado = True
+            self.estado["conectado_fisico"] = False
+            self.estado["modo_simulado"] = True
         self._persistir()
 
     def registrar_callback_boton(self, fn: Callable[[str], None]) -> None:
@@ -162,7 +199,14 @@ class ClienteFichadorSerie:
             _CALLBACKS_BOTONES.append(fn)
 
     def _bucle_lectura_serie(self) -> None:
-        while self._serial and getattr(self._serial, "is_open", False):
+        while not self._forzar_simulado:
+            if self._serial is None or not getattr(self._serial, "is_open", False) or self.modo_simulado:
+                time.sleep(4.0)
+                if self._intentar_conectar_serie():
+                    rgb = self.estado.get("rgb", [10, 60, 150])
+                    self.cambiar_rgb(rgb[0], rgb[1], rgb[2])
+                    self.mostrar_mensaje(self.estado.get("linea1", "UTN FRC - LIS"), self.estado.get("linea2", "TOQUE EL SENSOR"))
+                continue
             try:
                 if self._serial.in_waiting > 0:
                     with _LOCK_SERIE:
@@ -181,8 +225,10 @@ class ClienteFichadorSerie:
                                 pass
                 else:
                     time.sleep(0.03)
-            except Exception:
-                time.sleep(0.1)
+            except Exception as exc:
+                logging.warning("Desconexión serie detectada (%s); reintentando en segundo plano.", exc)
+                self._marcar_desconexion_serie()
+                time.sleep(1.0)
 
     @staticmethod
     def truncar_16(texto: str) -> str:
@@ -198,9 +244,8 @@ class ClienteFichadorSerie:
                     self._serial.write(linea.encode("ascii", errors="replace"))
                     self._serial.flush()
             except Exception:
-                logging.warning("Fallo escritura serie; pasando a modo simulado.")
-                self.modo_simulado = True
-                self.estado["modo_simulado"] = True
+                logging.warning("Fallo escritura serie; pasando a modo simulado (reintento automático activo).")
+                self._marcar_desconexion_serie()
 
     def resetear(self) -> None:
         """Restaura el fichador a su estado original de reposo (Standby)."""

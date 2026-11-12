@@ -325,6 +325,28 @@ class RepositorioLIS:
             return perfil
         return None
 
+    def buscar_por_pin(self, pin: str) -> tuple[dict[str, Any] | None, str | None]:
+        """Busca un integrante activo únicamente por su PIN personal."""
+        pin_limpio = str(pin).strip()
+        if not pin_limpio:
+            return None, "Ingresá un código PIN."
+        with self._conectar() as conn:
+            filas = conn.execute(
+                """
+                SELECT p.*, COUNT(e.id) AS cantidad_embeddings
+                FROM personas p
+                LEFT JOIN embeddings e ON e.persona_id = p.id AND e.modelo = 'vggface2'
+                WHERE p.pin = ? AND p.activo = 1
+                GROUP BY p.id
+                """,
+                (pin_limpio,),
+            ).fetchall()
+        if not filas:
+            return None, "PIN incorrecto."
+        if len(filas) > 1:
+            return None, "PIN compartido por varios perfiles; asigná un PIN único en Padrón."
+        return dict(filas[0]), None
+
     def listar_personas(self) -> list[dict[str, Any]]:
         with self._conectar() as conn:
             filas = conn.execute(

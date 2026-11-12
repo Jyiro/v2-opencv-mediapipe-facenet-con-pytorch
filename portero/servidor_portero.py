@@ -435,10 +435,16 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             origen = datos.get("origen", "tablet-puerta")
             metodo = datos.get("metodo", "pin")
 
-            perfil = repositorio.verificar_pin(usuario, pin)
+            if usuario:
+                perfil = repositorio.verificar_pin(usuario, pin)
+                err_pin = "PIN incorrecto o usuario inexistente."
+            else:
+                perfil, err_pin = repositorio.buscar_por_pin(pin)
+                err_pin = err_pin or "PIN incorrecto."
+
             if not perfil:
                 fichador.notificar_evento_acceso("PIN INVALIDO", "error")
-                self._responder_json(401, {"ok": False, "error": "PIN incorrecto o usuario inexistente."})
+                self._responder_json(401, {"ok": False, "error": err_pin})
                 return
 
             ev = crear_evento(
