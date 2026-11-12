@@ -1071,7 +1071,7 @@
     tbody tr:hover td { background: var(--surface-alt); }
 
     /* ==========================================================================
-       SECCIÓN DE DESGLOSE ISOMÉTRICO (MAKING SOFTWARE EXPLODED BLUEPRINT)
+       SECCIÓN DE DESGLOSE ISOMÉTRICO (ESQUEMA TÉCNICO DE CAPAS CAD)
        ========================================================================== */
     .blueprint-showcase {
       margin-top: 18px;
@@ -1359,7 +1359,7 @@
                 <span class="panel-code">FIG_001</span>
                 <span class="panel-title">Estación de Visión · MediaPipe + FaceNet</span>
               </div>
-              <button class="btn btn-outline btn-sm" onclick="tocarSensorTouch()">[ TOUCH SENSOR ]</button>
+              <button class="btn btn-outline btn-sm" onclick="tocarSensorTouch()">[ SENSOR TÁCTIL ]</button>
             </div>
 
             <div class="panel-body">
@@ -1507,7 +1507,7 @@
             <span class="panel-code">FIG_CAD</span>
             <div style="display: flex; flex-direction: column;">
               <span style="font-family: var(--font-mono); font-size: 0.74rem; font-weight: 600; color: var(--text); letter-spacing: 0.04em;">
-                MANUAL DE ARQUITECTURA TÉCNICA &amp; DESGLOSE ISOMÉTRICO (EXPLODED CAD VIEW)
+                MANUAL DE ARQUITECTURA TÉCNICA &amp; DESGLOSE ISOMÉTRICO TRIDIMENSIONAL
               </span>
               <span style="font-family: var(--font-serif); font-size: 0.8rem; color: var(--muted); font-style: italic;">
                 Vea la descomposición en 4 capas de visión artificial y hardware embebido en la pestaña dedicada.
@@ -1749,11 +1749,11 @@
               <span class="panel-code">FIG_011</span>
               <span class="panel-title">Manual de Referencia · Arquitectura Integral de Software y Hardware de Borde</span>
             </div>
-            <span class="badge badge-blue">[ SPECIFICATION MANUAL · REV 2026 ]</span>
+            <span class="badge badge-blue">[ MANUAL DE ESPECIFICACIÓN TÉCNICA · REV 2026 ]</span>
           </div>
           <div class="panel-body" style="background: var(--bg); padding: 18px 24px;">
             <p class="editorial-lead" style="max-width: 90ch; font-size: 1.05rem; line-height: 1.62;">
-              Have you ever wondered how an intelligent laboratory attendance system can guarantee complete personal privacy without sacrificing biometric precision or computational efficiency? By decoupling optical capture from storage and isolating each functional layer along an append-only event pipeline, LIS-FaceNet reconciles edge intelligence with absolute cryptographic privacy.
+              El sistema LIS-FaceNet implementa una arquitectura biométrica de borde orientada a la privacidad absoluta, eliminando el almacenamiento persistente de imágenes fotográficas y procesando cada registro mediante flujos vectoriales efímeros en memoria volátil junto a una persistencia inmutable de eventos.
             </p>
           </div>
         </div>
@@ -1765,7 +1765,7 @@
           <div class="panel-header">
             <div class="panel-title-group">
               <span class="panel-code">FIG_012</span>
-              <span class="panel-title">Desglose Isométrico Interactivo en Tiempo Real (Exploded CAD View)</span>
+              <span class="panel-title">Desglose Isométrico Interactivo en Tiempo Real (Modelo CAD de Capas)</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px;">
               <button id="btn-iso-scene-pipe" class="btn btn-sm" onclick="cambiarEscenaIso('pipeline')">[ 01 · PIPELINE FACENET ]</button>
@@ -1778,7 +1778,7 @@
             <div class="blueprint-editorial-col">
               <div>
                 <p id="iso-editorial-text" class="editorial-lead" style="font-size: 0.88rem; line-height: 1.55;">
-                  Have you ever wondered how LIS-FaceNet verifies identity in milliseconds without storing a single photograph on disk? Each video frame passes through four isolated mathematical layers along our edge pipeline.
+                  El pipeline de inferencia procesa cada cuadro de video a través de cuatro capas matemáticas aisladas en memoria RAM, desacoplando la captura óptica del registro permanente de eventos y garantizando un tiempo de respuesta de milisegundos sin retención de imágenes.
                 </p>
 
                 <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
@@ -1848,7 +1848,7 @@
                       <line x1="162" y1="204" x2="112" y2="204" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
                       <text x="106" y="207" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">SQLITE WAL · L2</text>
                       <line x1="378" y1="204" x2="422" y2="204" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
-                      <text id="cad-lbl-eventos" x="427" y="207" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">512-D VECTOR</text>
+                      <text id="cad-lbl-eventos" x="427" y="207" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">VECTOR 512-D</text>
                     </g>
                   </g>
 
@@ -1888,7 +1888,7 @@
                       <line x1="230" y1="84" x2="112" y2="84" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
                       <text id="cad-lbl-cam" x="106" y="87" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">ENTRADA ÓPTICA</text>
                       <line x1="376" y1="116" x2="422" y2="116" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
-                      <text id="cad-lbl-fps" x="427" y="119" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">STREAM RGB</text>
+                      <text id="cad-lbl-fps" x="427" y="119" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">FLUJO RGB</text>
                     </g>
                   </g>
                 </g>
@@ -1933,7 +1933,7 @@
                     <polygon points="224,122 262,141 238,153 200,134" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.2" />
                     <g class="iso-callout">
                       <line x1="242" y1="74" x2="112" y2="74" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
-                      <text x="106" y="77" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">TOUCH CAPACITIVO</text>
+                      <text x="106" y="77" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">SENSOR TÁCTIL</text>
                       <line x1="358" y1="108" x2="422" y2="108" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
                       <text x="427" y="111" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">CARCASA SUPERIOR</text>
                     </g>
@@ -1958,7 +1958,7 @@
             <div class="panel-header">
               <div class="panel-title-group">
                 <span class="panel-code">CAP_01</span>
-                <span class="panel-title">La Idea y Privacidad Absoluta (Zero-Photo Retention)</span>
+                <span class="panel-title">Fundamentos del Sistema y Privacidad Absoluta (Cero Retención Fotográfica)</span>
               </div>
               <span class="badge badge-green">[ PRIVACIDAD POR DISEÑO ]</span>
             </div>
@@ -1981,7 +1981,7 @@
                 </div>
               </div>
               <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.55;">
-                Además, el sistema es <strong>100% libre de contacto físico</strong> (*hands-free*): los integrantes validan su intención mediante gestos ópticos frente a la lente (<strong>Palma Abierta</strong> para registrar ingreso y <strong>Pulgar Arriba</strong> para egreso), ideal para un laboratorio donde se manipulan circuitos y herramientas.
+                Además, el sistema opera con <strong>interacción 100% libre de contacto físico</strong>: los integrantes confirman su intención mediante gestos ópticos frente a la lente (<strong>Palma Abierta</strong> para registrar ingreso y <strong>Pulgar Arriba</strong> para egreso), permitiendo una interacción higiénica y segura en un laboratorio donde se manipulan circuitos y herramientas.
               </p>
             </div>
           </div>
@@ -2105,8 +2105,8 @@
       <footer class="ms-footer">
         <div class="perforated-rule" style="margin-bottom: 12px;"></div>
         <div>| LIS · LABORATORIO DE INVESTIGACIÓN DE SOFTWARE |</div>
-        <div style="margin-top: 3px;">A REFERENCE CONSOLE FOR BIOMETRIC EDGE ATTENDANCE &amp; TELEMETRY · UTN FRC</div>
-        <div style="margin-top: 4px;">[ © 1998 — 2026 · BLUEPRINT DESIGN SYSTEM ]</div>
+        <div style="margin-top: 3px;">CONSOLA DE CONTROL BIOMÉTRICO Y TELEMETRÍA DE BORDE · UTN FRC</div>
+        <div style="margin-top: 4px;">[ © 1998 — 2026 · SISTEMA DE DISEÑO TÉCNICO BLUEPRINT ]</div>
         <div class="ms-dither-strip"></div>
       </footer>
     </main>
@@ -2120,17 +2120,17 @@
     let subiendoCuadro = false;
 
     /* ==========================================================================
-       CONTROLADOR DE DESGLOSE ISOMÉTRICO (MAKING SOFTWARE EXPLODED VIEW)
+       CONTROLADOR DE DESGLOSE ISOMÉTRICO (VISTA TRIDIMENSIONAL DE CAPAS)
        ========================================================================== */
     const ESCENAS_ISO = {
       pipeline: {
         marginLeft: 'FIG_004 · REV 2026',
         marginRight: '[ PIPELINE BIOMÉTRICO 512-D ]',
-        copy: 'Have you ever wondered how LIS-FaceNet verifies identity in milliseconds without storing a single photograph on disk? Each video frame passes through four isolated mathematical layers along our edge pipeline.',
+        copy: 'El pipeline de inferencia procesa cada cuadro de video a través de cuatro capas matemáticas aisladas en memoria RAM, desacoplando la captura óptica del registro permanente de eventos y garantizando un tiempo de respuesta de milisegundos sin retención de imágenes.',
         prefix: 'pipe-layer-',
         offsets: [-32, -8, 16, 42],
         layers: [
-          { id: 0, code: 'L01', name: 'ÓPTICA RGB / STREAM' },
+          { id: 0, code: 'L01', name: 'ÓPTICA RGB / FLUJO' },
           { id: 1, code: 'L02', name: 'BLAZEFACE + POSE' },
           { id: 2, code: 'L03', name: 'TENSOR HOT-SWAP' },
           { id: 3, code: 'L04', name: 'FACENET 512D + WAL' }
@@ -2139,11 +2139,11 @@
       hardware: {
         marginLeft: 'FIG_004B · HARDWARE',
         marginRight: '[ FICHADOR SERIE + PORTERO ]',
-        copy: 'Cuando un integrante toca el sensor o confirma un gesto frente a la cámara, el servicio Portero persiste el evento con fsync en disco y despacha tramas a 115200 baudios hacia el display LCD 16×2.',
+        copy: 'Cuando un integrante interactúa con el sensor táctil o confirma un gesto óptico ante la cámara, el servicio Portero persiste el evento en disco mediante fsync y transmite las tramas a 115200 baudios hacia el módulo LCD 16×2.',
         prefix: 'hw-layer-',
         offsets: [-30, -8, 16, 40],
         layers: [
-          { id: 0, code: 'H01', name: 'CARCASA & TOUCH' },
+          { id: 0, code: 'H01', name: 'CARCASA & SENSOR TÁCTIL' },
           { id: 1, code: 'H02', name: 'GROVE LCD 16×2 RGB' },
           { id: 2, code: 'H03', name: 'ARDUINO 115200 BPS' },
           { id: 3, code: 'H04', name: 'PORTERO HTTP JSONL' }
