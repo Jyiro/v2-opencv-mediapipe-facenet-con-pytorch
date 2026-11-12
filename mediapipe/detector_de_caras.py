@@ -694,74 +694,149 @@ class PipelineReconocimientoLIS:
         fh, fw = frame_bgr.shape[:2]
 
         if self.standby:
-            # Fondo sólido oscuro en modo reposo (sin mostrar video de cámara por detrás)
-            frame_bgr[:] = (12, 16, 24)
+            # Fondo Blueprint CAD Making Software (Navy profundo BGR: 30, 16, 10 -> RGB: #0A101E)
+            frame_bgr[:] = (30, 16, 10)
 
-            # Barra superior informativa
-            cv.rectangle(frame_bgr, (0, 0), (fw, 40), (18, 24, 36), -1)
+            # Cuadrícula milimetrada técnica CAD (líneas menores cada 32px)
+            color_grid_menor = (46, 26, 16)
+            for gx in range(0, fw, 32):
+                cv.line(frame_bgr, (gx, 0), (gx, fh), color_grid_menor, 1)
+            for gy in range(0, fh, 32):
+                cv.line(frame_bgr, (0, gy), (fw, gy), color_grid_menor, 1)
+
+            # Líneas mayores cada 128px
+            color_grid_mayor = (68, 38, 22)
+            for gx in range(0, fw, 128):
+                cv.line(frame_bgr, (gx, 0), (gx, fh), color_grid_mayor, 1)
+            for gy in range(0, fh, 128):
+                cv.line(frame_bgr, (0, gy), (fw, gy), color_grid_mayor, 1)
+
+            # Marco perimetral técnico con marcas de esquina (Corner ticks)
+            color_blueprint = (244, 80, 34)  # #2250F4 en BGR (Azul cobalto eléctrico)
+            color_blueprint_suave = (160, 60, 24)
+            m = 18
+            cv.rectangle(frame_bgr, (m, m), (fw - m, fh - m), color_blueprint_suave, 1)
+            tl = 14
+            cv.line(frame_bgr, (m, m), (m + tl, m), color_blueprint, 2)
+            cv.line(frame_bgr, (m, m), (m, m + tl), color_blueprint, 2)
+            cv.line(frame_bgr, (fw - m, m), (fw - m - tl, m), color_blueprint, 2)
+            cv.line(frame_bgr, (fw - m, m), (fw - m, m + tl), color_blueprint, 2)
+            cv.line(frame_bgr, (m, fh - m), (m + tl, fh - m), color_blueprint, 2)
+            cv.line(frame_bgr, (m, fh - m), (m, fh - m - tl), color_blueprint, 2)
+            cv.line(frame_bgr, (fw - m, fh - m), (fw - m - tl, fh - m), color_blueprint, 2)
+            cv.line(frame_bgr, (fw - m, fh - m), (fw - m, fh - m - tl), color_blueprint, 2)
+
+            # Barra superior informativa estilo cota técnica
             cv.putText(
                 frame_bgr,
-                "LIS Vision | ESTADO: MODO REPOSO (STAND-BY) | Sensor listo",
-                (14, 26),
+                "LIS-VISION // FIG_000 · ARCHITECTURE STAND-BY (BAJO CONSUMO)",
+                (m + 10, m + 22),
                 cv.FONT_HERSHEY_SIMPLEX,
-                0.48,
-                (235, 190, 40),
+                0.44,
+                (255, 120, 50),
+                1,
+                cv.LINE_AA,
+            )
+            cv.putText(
+                frame_bgr,
+                "[ INFERENCIA: 0.0 FPS · SENSOR LISTO ]",
+                (max(m + 10, fw - m - 280), m + 22),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.40,
+                (190, 175, 160),
                 1,
                 cv.LINE_AA,
             )
 
             # Tarjeta central destacada
-            card_w, card_h = min(520, fw - 40), 140
+            card_w, card_h = min(540, fw - 60), 156
             cx, cy = fw // 2, fh // 2
             x1, y1 = cx - card_w // 2, cy - card_h // 2
             x2, y2 = x1 + card_w, y1 + card_h
 
-            cv.rectangle(frame_bgr, (x1, y1), (x2, y2), (20, 26, 38), -1)
-            cv.rectangle(frame_bgr, (x1, y1), (x2, y2), (235, 180, 20), 2)
+            cv.rectangle(frame_bgr, (x1, y1), (x2, y2), (20, 12, 7), -1)
+            cv.rectangle(frame_bgr, (x1, y1), (x2, y2), color_blueprint, 2)
+            cv.rectangle(frame_bgr, (x1 + 4, y1 + 4), (x2 - 4, y2 - 4), color_blueprint_suave, 1)
+
+            # Línea divisoria interna
+            cv.line(frame_bgr, (x1 + 16, y1 + 44), (x2 - 16, y1 + 44), (100, 50, 28), 1)
 
             cv.putText(
                 frame_bgr,
-                "[ SISTEMA EN REPOSO ]",
-                (cx - 130, y1 + 36),
+                "[ SISTEMA EN REPOSO · STAND-BY ]",
+                (cx - 150, y1 + 32),
                 cv.FONT_HERSHEY_SIMPLEX,
-                0.66,
-                (245, 205, 50),
+                0.62,
+                (255, 130, 55),
                 2,
                 cv.LINE_AA,
             )
             cv.putText(
                 frame_bgr,
                 "TOQUE EL SENSOR TACTIL (D2) PARA ACTIVAR",
-                (cx - 215, y1 + 78),
+                (cx - 208, y1 + 78),
                 cv.FONT_HERSHEY_SIMPLEX,
-                0.52,
-                (130, 235, 40),
+                0.50,
+                (140, 240, 60),
                 2,
                 cv.LINE_AA,
             )
             cv.putText(
                 frame_bgr,
                 "Ventana activa de escaneo biometrico: 25 segundos",
-                (cx - 185, y1 + 114),
+                (cx - 175, y1 + 108),
                 cv.FONT_HERSHEY_SIMPLEX,
-                0.44,
-                (180, 195, 210),
+                0.42,
+                (215, 215, 210),
+                1,
+                cv.LINE_AA,
+            )
+            cv.putText(
+                frame_bgr,
+                "PIPELINE: BLAZEFACE CPU + FACENET 512-D | WAL PERSISTENCE",
+                (cx - 215, y1 + 134),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.36,
+                (244, 90, 40),
+                1,
+                cv.LINE_AA,
+            )
+
+            # Pie técnico dentro de la pantalla
+            cv.putText(
+                frame_bgr,
+                "[ BLAZEFACE + VGGFACE2 512-D ]",
+                (m + 10, fh - m - 10),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.40,
+                (220, 110, 45),
+                1,
+                cv.LINE_AA,
+            )
+            cv.putText(
+                frame_bgr,
+                "[ PALMA: INGRESO  |  PULGAR: EGRESO ]",
+                (max(m + 10, fw - m - 270), fh - m - 10),
+                cv.FONT_HERSHEY_SIMPLEX,
+                0.40,
+                (220, 110, 45),
                 1,
                 cv.LINE_AA,
             )
             return
 
         overlay = frame_bgr.copy()
-        cv.rectangle(overlay, (0, 0), (fw, 44), (18, 24, 38), -1)
-        cv.addWeighted(overlay, 0.82, frame_bgr, 0.18, 0, frame_bgr)
+        cv.rectangle(overlay, (0, 0), (fw, 42), (30, 16, 10), -1)
+        cv.addWeighted(overlay, 0.85, frame_bgr, 0.15, 0, frame_bgr)
+        cv.line(frame_bgr, (0, 42), (fw, 42), (244, 80, 34), 1)
 
         seg_rest = max(0, int(self.tiempo_expiracion_standby - time.time()))
         fuente_corta = str(self.fuente_camara)[:12]
         texto_hdr = (
-            f"LIS Vision | FPS: {fps:.1f} | Activo: {seg_rest}s | "
-            f"Cam: {fuente_corta} | Presentes: {len(presentes)} | d<{self.umbral:.2f}"
+            f"LIS-VISION CAD | FPS: {fps:.1f} | ACTIVO: {seg_rest}s | "
+            f"CAM: {fuente_corta} | EN SALA: {len(presentes)} | d<{self.umbral:.2f}"
         )
-        cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.50, (235, 240, 245), 1, cv.LINE_AA)
+        cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.48, (245, 245, 250), 1, cv.LINE_AA)
 
         for pista in self.pistas:
             x, y, w, h = pista.bbox

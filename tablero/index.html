@@ -3,100 +3,129 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LIS · Consola Operativa — UTN Facultad Regional Córdoba</title>
-  <meta name="description" content="Sistema interno de control de presencia, biometría, inventario y telemetría del Laboratorio de Investigación de Software (LIS - UTN FRC)." />
+  <title>LIS · Manual &amp; Consola Operativa — UTN Facultad Regional Córdoba</title>
+  <meta name="description" content="Sistema interno de control de presencia, biometría, inventario y telemetría del Laboratorio de Investigación de Software (LIS - UTN FRC) con estética de manual técnico Making Software." />
   <script>
     (function () {
       var t;
       try { t = localStorage.getItem('lis-tema'); } catch (e) {}
       if (t !== 'light' && t !== 'dark') {
-        t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+        t = 'light';
       }
       document.documentElement.setAttribute('data-theme', t);
     })();
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=Silkscreen:wght@400;700&display=swap" />
   <style>
     :root {
-      --bg: #f3f4f6;
-      --surface: #ffffff;
-      --surface-alt: #f8f9fb;
-      --surface-subtle: #eef0f4;
-      --field: #ffffff;
-      --border: #d8dce5;
-      --border-strong: #bfc6d4;
-      --text: #11151f;
-      --text-secondary: #4a5365;
-      --muted: #6e788c;
-      --accent: #0f3d8a;
-      --accent-hover: #0b2e6b;
-      --accent-soft: #e6eefc;
-      --accent-ink: #0f3d8a;
-      --green: #0d8a5f;
-      --green-soft: #e3f5ee;
-      --green-ink: #086645;
-      --blue: #1d5bd6;
-      --blue-soft: #e6eefc;
-      --blue-ink: #1545a8;
-      --amber: #c47708;
-      --amber-soft: #fef3de;
-      --amber-ink: #8a5000;
-      --red: #c92a3a;
-      --red-soft: #fce8ea;
-      --red-ink: #9c1b28;
-      --ok: #0d8a5f;
-      --bad: #c92a3a;
-      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
-      --font-sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      --font-mono: "IBM Plex Mono", "Consolas", "SFMono-Regular", monospace;
+      /* Paleta Making Software / Technical Blueprint (Modo Papel Claro) */
+      --bg: #F9F9F7;
+      --surface: #FFFFFF;
+      --surface-alt: #F3F4F8;
+      --surface-subtle: #EAECE4;
+      --field: #FFFFFF;
+      --border: #D5D6CE;
+      --border-strong: #2250F4;
+      --border-rule: #C8C9C0;
+      --text: #141413;
+      --text-secondary: #3E3E3A;
+      --muted: #787872;
+
+      /* Azul Blueprint Cobalto (Acento Principal) */
+      --accent: #2250F4;
+      --accent-hover: #183EC2;
+      --accent-soft: rgba(34, 80, 244, 0.09);
+      --accent-mid: rgba(34, 80, 244, 0.18);
+      --accent-strong: rgba(34, 80, 244, 0.32);
+      --accent-ink: #183EC2;
+
+      /* Semántica Técnica Controlada */
+      --green: #0B7A53;
+      --green-soft: rgba(11, 122, 83, 0.10);
+      --green-ink: #07593C;
+      --blue: #2250F4;
+      --blue-soft: rgba(34, 80, 244, 0.10);
+      --blue-ink: #183EC2;
+      --amber: #B86804;
+      --amber-soft: rgba(184, 104, 4, 0.11);
+      --amber-ink: #854900;
+      --red: #C92A3A;
+      --red-soft: rgba(201, 42, 58, 0.10);
+      --red-ink: #9C1B28;
+      --ok: #0B7A53;
+      --bad: #C92A3A;
+
+      /* Cuadrícula Milimetrada CAD */
+      --grid-major: rgba(34, 80, 244, 0.085);
+      --grid-minor: rgba(34, 80, 244, 0.032);
+      --dither-a: #BCBCB4;
+      --dither-b: #D6D6CE;
+
+      /* Tríada Tipográfica Making Software */
+      --font-display: "Silkscreen", "IBM Plex Mono", monospace;
+      --font-serif: "Newsreader", Georgia, "Times New Roman", serif;
+      --font-sans: "Newsreader", Georgia, serif;
+      --font-mono: "IBM Plex Mono", "Consolas", monospace;
       color-scheme: light;
     }
 
     html[data-theme="dark"] {
-      --bg: #0b0d11;
-      --surface: #11141b;
-      --surface-alt: #151922;
-      --surface-subtle: #1a1f2b;
-      --field: #0d1016;
-      --border: #232836;
-      --border-strong: #32394c;
-      --text: #e6e9f0;
-      --text-secondary: #a2abb9;
-      --muted: #6d778a;
-      --accent: #3b82f6;
-      --accent-hover: #2563eb;
-      --accent-soft: rgba(59, 130, 246, 0.14);
-      --accent-ink: #93bbfd;
-      --green: #10b981;
-      --green-soft: rgba(16, 185, 129, 0.13);
-      --green-ink: #5eead4;
-      --blue: #3b82f6;
-      --blue-soft: rgba(59, 130, 246, 0.14);
-      --blue-ink: #93c5fd;
-      --amber: #f59e0b;
-      --amber-soft: rgba(245, 158, 11, 0.14);
-      --amber-ink: #fcd34d;
-      --red: #ef4444;
-      --red-soft: rgba(239, 68, 68, 0.14);
-      --red-ink: #fca5a5;
-      --ok: #34d399;
-      --bad: #f87171;
-      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+      /* Modo Plano Blueprint Nocturno (CAD Dark) */
+      --bg: #0A0F1D;
+      --surface: #0E1528;
+      --surface-alt: #121C34;
+      --surface-subtle: #172340;
+      --field: #0B1120;
+      --border: #1E2E52;
+      --border-strong: #4B7BFF;
+      --border-rule: #243760;
+      --text: #EEF2FF;
+      --text-secondary: #B4C2E4;
+      --muted: #7488B8;
+
+      --accent: #4B7BFF;
+      --accent-hover: #3566EE;
+      --accent-soft: rgba(75, 123, 255, 0.14);
+      --accent-mid: rgba(75, 123, 255, 0.24);
+      --accent-strong: rgba(75, 123, 255, 0.38);
+      --accent-ink: #93B4FF;
+
+      --green: #10B981;
+      --green-soft: rgba(16, 185, 129, 0.14);
+      --green-ink: #6EE7B7;
+      --blue: #4B7BFF;
+      --blue-soft: rgba(75, 123, 255, 0.16);
+      --blue-ink: #93C5FD;
+      --amber: #F59E0B;
+      --amber-soft: rgba(245, 158, 11, 0.15);
+      --amber-ink: #FCD34D;
+      --red: #EF4444;
+      --red-soft: rgba(239, 68, 68, 0.15);
+      --red-ink: #FCA5A5;
+      --ok: #34D399;
+      --bad: #F87171;
+
+      --grid-major: rgba(75, 123, 255, 0.12);
+      --grid-minor: rgba(75, 123, 255, 0.045);
+      --dither-a: #1E2E52;
+      --dither-b: #15203B;
       color-scheme: dark;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      background: var(--bg);
+      background-color: var(--bg);
       color: var(--text);
-      font-family: var(--font-sans);
-      font-size: 13.5px;
-      line-height: 1.45;
+      font-family: var(--font-serif);
+      font-size: 14.5px;
+      line-height: 1.5;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
     }
+
     :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
     .i {
@@ -105,96 +134,156 @@
       stroke-linecap: round; stroke-linejoin: round;
     }
 
-    /* Estructura general */
+    /* Superficie con cuadrícula milimetrada de plano técnico */
+    .blueprint-grid-bg {
+      background-color: var(--surface-alt);
+      background-image:
+        linear-gradient(to right, var(--grid-major) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-major) 1px, transparent 1px),
+        linear-gradient(to right, var(--grid-minor) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-minor) 1px, transparent 1px);
+      background-size: 32px 32px, 32px 32px, 8px 8px, 8px 8px;
+    }
+
+    /* Separador perforado estilo matriz de puntos (::::::) */
+    .perforated-rule {
+      width: 100%;
+      height: 6px;
+      background-image:
+        radial-gradient(var(--muted) 1px, transparent 1px),
+        radial-gradient(var(--muted) 1px, transparent 1px);
+      background-size: 6px 3px;
+      background-position: 0 0, 2px 2px;
+      opacity: 0.45;
+    }
+
+    /* Capitular (Drop Cap) editorial estilo Making Software */
+    .editorial-lead {
+      font-family: var(--font-serif);
+      font-size: 0.94rem;
+      line-height: 1.58;
+      color: var(--text);
+    }
+    .editorial-lead::first-letter {
+      float: left;
+      font-family: var(--font-serif);
+      font-size: 2.9rem;
+      line-height: 0.82;
+      padding-right: 0.45rem;
+      padding-top: 0.08rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    /* Etiqueta vertical rotada en márgenes de figuras */
+    .fig-vertical {
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      user-select: none;
+    }
+
     .shell {
       display: flex;
       flex-direction: column;
       min-height: 100vh;
     }
 
-    /* Cabecera institucional superior */
+    /* Cabecera estilo Manual Making Software */
     .topbar {
-      background: var(--surface);
-      border-bottom: 1px solid var(--border);
-      padding: 0 24px;
-      min-height: 56px;
+      background: var(--bg);
+      padding: 16px 28px 12px;
       display: flex;
-      align-items: center;
+      align-items: flex-end;
       justify-content: space-between;
-      gap: 16px;
+      gap: 20px;
       flex-wrap: wrap;
     }
     .brand-group {
       display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-    .utn-mark {
-      width: 34px;
-      height: 34px;
-      border-radius: 6px;
-      background: var(--surface-alt);
-      border: 1px solid var(--border-strong);
-      color: var(--text);
-      display: grid;
-      place-items: center;
-      flex-shrink: 0;
-    }
-    .utn-mark svg {
-      width: 20px;
-      height: 20px;
-      stroke: currentColor;
-      stroke-width: 2;
-      fill: none;
-    }
-    .brand-titles {
-      display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: 4px;
     }
     .brand-eyebrow {
       font-family: var(--font-mono);
       font-size: 0.68rem;
       font-weight: 500;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.09em;
       text-transform: uppercase;
       color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    .brand-titles h1 {
-      font-size: 0.94rem;
+    .pixel-brand-title {
+      font-family: var(--font-display);
+      font-size: 1.55rem;
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: 0.03em;
+      line-height: 1.05;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .pixel-brand-tag {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
       font-weight: 600;
-      color: var(--text);
-      letter-spacing: -0.01em;
+      letter-spacing: 0.08em;
+      padding: 2px 7px;
+      border: 1px solid var(--accent);
+      color: var(--accent);
+      background: var(--accent-soft);
     }
 
+    .topbar-right {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    .manual-subtitle {
+      font-family: var(--font-serif);
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      text-align: right;
+      line-height: 1.35;
+    }
     .topbar-controls {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
     .status-chip {
       display: inline-flex;
       align-items: center;
       gap: 7px;
-      height: 30px;
+      height: 28px;
       padding: 0 10px;
-      border-radius: 5px;
-      background: var(--surface-alt);
+      background: var(--surface);
       border: 1px solid var(--border);
-      font-size: 0.76rem;
+      font-family: var(--font-mono);
+      font-size: 0.71rem;
       color: var(--text-secondary);
+      letter-spacing: 0.03em;
     }
     .status-chip strong {
       font-family: var(--font-mono);
       font-weight: 600;
-      color: var(--text);
+      color: var(--accent);
       font-variant-numeric: tabular-nums;
     }
     .dot {
       width: 7px;
       height: 7px;
-      border-radius: 50%;
       background: var(--green);
       flex-shrink: 0;
     }
@@ -204,34 +293,34 @@
     .mode-selector-wrap {
       display: inline-flex;
       align-items: center;
-      gap: 7px;
-      height: 30px;
+      gap: 6px;
+      height: 28px;
       padding: 0 4px 0 10px;
-      border-radius: 5px;
-      background: var(--surface-alt);
+      background: var(--surface);
       border: 1px solid var(--border);
-      font-size: 0.76rem;
+      font-family: var(--font-mono);
+      font-size: 0.71rem;
       color: var(--text-secondary);
     }
     .mode-selector-wrap select {
       border: 0;
       background: transparent;
       color: var(--text);
-      font-family: var(--font-sans);
-      font-size: 0.76rem;
+      font-family: var(--font-mono);
+      font-size: 0.71rem;
       font-weight: 600;
       padding: 2px 6px;
       width: auto;
       cursor: pointer;
+      text-transform: uppercase;
     }
     .mode-selector-wrap select:focus { outline: none; }
 
     .icon-btn {
-      width: 30px;
-      height: 30px;
-      border-radius: 5px;
+      width: 28px;
+      height: 28px;
       border: 1px solid var(--border);
-      background: var(--surface-alt);
+      background: var(--surface);
       color: var(--text-secondary);
       display: grid;
       place-items: center;
@@ -239,23 +328,28 @@
       transition: border-color 0.15s ease, color 0.15s ease;
     }
     .icon-btn:hover {
-      border-color: var(--border-strong);
-      color: var(--text);
+      border-color: var(--accent);
+      color: var(--accent);
     }
     .icon-btn .ico-sol { display: none; }
     html[data-theme="dark"] .icon-btn .ico-sol { display: block; }
     html[data-theme="dark"] .icon-btn .ico-luna { display: none; }
 
-    /* Barra de navegación técnica + Cinta de avisos */
+    /* Sub-barra de navegación con separadores perforados */
+    .subbar-wrap {
+      padding: 0 28px;
+    }
     .subbar {
       background: var(--surface);
+      border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
-      padding: 0 24px;
+      padding: 0 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 16px;
       flex-wrap: wrap;
+      margin: 6px 0;
     }
     .nav-tabs {
       display: flex;
@@ -268,28 +362,39 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 11px 14px;
+      padding: 10px 14px;
       border: 0;
       background: transparent;
       color: var(--text-secondary);
-      font-family: var(--font-sans);
-      font-size: 0.8rem;
+      font-family: var(--font-mono);
+      font-size: 0.73rem;
       font-weight: 500;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
       cursor: pointer;
       white-space: nowrap;
-      transition: color 0.15s ease;
+      transition: color 0.15s ease, background-color 0.15s ease;
     }
     .tab-btn .tab-idx {
       font-family: var(--font-mono);
-      font-size: 0.68rem;
+      font-size: 0.66rem;
       color: var(--muted);
+      padding: 1px 4px;
+      border: 1px solid var(--border);
     }
-    .tab-btn:hover { color: var(--text); }
+    .tab-btn:hover {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
     .tab-btn.active {
-      color: var(--text);
+      color: var(--accent);
       font-weight: 600;
     }
-    .tab-btn.active .tab-idx { color: var(--accent); }
+    .tab-btn.active .tab-idx {
+      color: #ffffff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
     .tab-btn.active::after {
       content: "";
       position: absolute;
@@ -305,32 +410,33 @@
       align-items: center;
       gap: 8px;
       padding: 4px 10px;
-      border-radius: 4px;
       background: var(--surface-alt);
       border: 1px solid var(--border);
       color: var(--text-secondary);
-      font-size: 0.76rem;
+      font-family: var(--font-mono);
+      font-size: 0.71rem;
       max-width: 480px;
       cursor: pointer;
     }
     .aviso-cinta.has-notice {
       background: var(--amber-soft);
-      border-color: rgba(245, 158, 11, 0.35);
+      border-color: var(--amber);
       color: var(--amber-ink);
     }
     .aviso-cinta .aviso-tag {
       font-family: var(--font-mono);
-      font-size: 0.66rem;
+      font-size: 0.64rem;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       padding: 1px 5px;
-      border-radius: 3px;
-      background: var(--surface-subtle);
+      background: var(--surface);
+      border: 1px solid var(--border);
       color: var(--muted);
     }
     .aviso-cinta.has-notice .aviso-tag {
       background: rgba(245, 158, 11, 0.2);
+      border-color: var(--amber);
       color: var(--amber-ink);
     }
     .aviso-cinta span#txt-cinta-aviso {
@@ -342,8 +448,8 @@
     /* Contenido principal */
     main {
       flex: 1;
-      padding: 18px 24px 32px;
-      max-width: 1680px;
+      padding: 14px 28px 32px;
+      max-width: 1720px;
       width: 100%;
       margin: 0 auto;
     }
@@ -352,11 +458,10 @@
 
     /* Banner de captura biométrica activa */
     .enroll-banner {
-      background: var(--amber-soft);
-      border: 1px solid var(--amber);
-      color: var(--amber-ink);
+      background: var(--accent-soft);
+      border: 1.5px solid var(--accent);
+      color: var(--text);
       padding: 10px 16px;
-      border-radius: 6px;
       display: none;
       align-items: center;
       justify-content: space-between;
@@ -365,15 +470,14 @@
     }
     .enroll-banner.show { display: flex; }
 
-    /* Tira de métricas (reemplaza las 4 cards arcoíris) */
+    /* Tira de métricas (Estilo Tabla de Especificaciones CAD) */
     .metrics-strip {
       display: grid;
       grid-template-columns: repeat(5, 1fr);
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      margin-bottom: 16px;
-      box-shadow: var(--shadow-sm);
+      border-top: 2px solid var(--accent);
+      margin-bottom: 18px;
       overflow: hidden;
     }
     .metric-cell {
@@ -382,14 +486,15 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
+      position: relative;
     }
     .metric-cell:last-child { border-right: 0; }
     .metric-label {
       font-family: var(--font-mono);
-      font-size: 0.67rem;
-      font-weight: 500;
+      font-size: 0.65rem;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.08em;
       color: var(--muted);
       display: flex;
       align-items: center;
@@ -403,15 +508,17 @@
     }
     .metric-value {
       font-family: var(--font-mono);
-      font-size: 1.3rem;
+      font-size: 1.35rem;
       font-weight: 600;
-      color: var(--text);
+      color: var(--accent);
       line-height: 1.1;
       font-variant-numeric: tabular-nums;
     }
     .metric-sub {
-      font-size: 0.75rem;
-      color: var(--muted);
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-size: 0.82rem;
+      color: var(--text-secondary);
     }
     .env-inline {
       display: flex;
@@ -420,36 +527,25 @@
       font-family: var(--font-mono);
       font-size: 0.92rem;
       font-weight: 600;
-      color: var(--text);
+      color: var(--accent);
       padding-top: 2px;
-    }
-    .env-inline span {
-      display: inline-flex;
-      align-items: baseline;
-      gap: 3px;
-    }
-    .env-inline small {
-      font-size: 0.68rem;
-      font-weight: 400;
-      color: var(--muted);
     }
 
     /* Grilla principal de 3 paneles */
     .grid-dashboard {
       display: grid;
-      grid-template-columns: 1.18fr 1.12fr 1fr;
-      gap: 16px;
+      grid-template-columns: 1.2fr 1.1fr 1fr;
+      gap: 18px;
       align-items: start;
     }
 
     .panel {
       background: var(--surface);
       border: 1px solid var(--border);
-      border-radius: 6px;
-      box-shadow: var(--shadow-sm);
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      position: relative;
     }
     .panel-header {
       padding: 10px 14px;
@@ -468,19 +564,21 @@
     }
     .panel-code {
       font-family: var(--font-mono);
-      font-size: 0.66rem;
+      font-size: 0.65rem;
       font-weight: 600;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      color: var(--muted);
-      padding: 1px 5px;
-      border: 1px solid var(--border);
-      border-radius: 3px;
-      background: var(--surface);
+      color: var(--accent);
+      padding: 1px 6px;
+      border: 1px solid var(--accent);
+      background: var(--accent-soft);
     }
     .panel-title {
-      font-size: 0.84rem;
+      font-family: var(--font-mono);
+      font-size: 0.76rem;
       font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
       color: var(--text);
     }
     .panel-body {
@@ -498,7 +596,6 @@
       padding: 9px 11px;
       background: var(--surface-alt);
       border: 1px solid var(--border);
-      border-radius: 5px;
     }
     .cam-toolbar-row {
       display: flex;
@@ -509,20 +606,19 @@
     }
     .cam-toolbar-label {
       font-family: var(--font-mono);
-      font-size: 0.7rem;
+      font-size: 0.68rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: var(--muted);
     }
 
-    /* Visor de video 4:3 */
+    /* Visor de video 4:3 con marco de plano técnico */
     .video-box {
       width: 100%;
       aspect-ratio: 4 / 3;
-      background: #0d1017;
-      border-radius: 5px;
+      background: #0B1020;
       overflow: hidden;
-      border: 1px solid var(--border);
+      border: 1.5px solid var(--accent);
       position: relative;
       display: flex;
       align-items: center;
@@ -545,14 +641,14 @@
       justify-content: space-between;
       pointer-events: none;
       font-family: var(--font-mono);
-      font-size: 0.66rem;
-      color: rgba(226, 232, 240, 0.75);
+      font-size: 0.64rem;
+      letter-spacing: 0.06em;
+      color: #EEF2FF;
     }
     .video-Overlay-meta span {
-      background: rgba(11, 13, 17, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      padding: 2px 6px;
-      border-radius: 3px;
+      background: rgba(10, 15, 29, 0.85);
+      border: 1px solid rgba(75, 123, 255, 0.55);
+      padding: 2px 7px;
     }
 
     /* HUD Biométrica de Enrolamiento Guiado por Poses */
@@ -564,7 +660,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      background: rgba(10, 14, 22, 0.45);
+      background: rgba(10, 15, 29, 0.55);
       backdrop-filter: blur(1.5px);
       pointer-events: none;
     }
@@ -582,28 +678,18 @@
     }
     .hud-oval-bg {
       fill: none;
-      stroke: rgba(255, 255, 255, 0.35);
-      stroke-width: 3;
-      stroke-dasharray: 6 6;
+      stroke: rgba(75, 123, 255, 0.5);
+      stroke-width: 2.5;
+      stroke-dasharray: 5 5;
     }
     .hud-oval-progress {
       fill: none;
-      stroke: #10b981;
-      stroke-width: 5;
-      stroke-linecap: round;
+      stroke: #2250F4;
+      stroke-width: 4.5;
+      stroke-linecap: square;
       stroke-dasharray: 600;
       stroke-dashoffset: 600;
       transition: stroke-dashoffset 0.15s ease-out, stroke 0.2s ease;
-    }
-    .hud-guiado-icono {
-      position: absolute;
-      font-size: 2.2rem;
-      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
-      animation: pulseIcon 1.5s infinite ease-in-out;
-    }
-    @keyframes pulseIcon {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.12); }
     }
     .hud-guiado-info {
       margin-top: 10px;
@@ -614,15 +700,17 @@
       text-align: center;
     }
     .hud-guiado-instruccion {
-      font-size: 1.05rem;
-      font-weight: 700;
+      font-size: 0.95rem;
+      font-weight: 600;
       color: #ffffff;
       text-shadow: 0 2px 6px rgba(0,0,0,0.85);
-      font-family: var(--font-sans);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
     }
     .hud-guiado-feedback {
-      font-size: 0.78rem;
-      color: #6ee7b7;
+      font-size: 0.74rem;
+      color: #93C5FD;
       font-family: var(--font-mono);
       text-shadow: 0 1px 4px rgba(0,0,0,0.8);
     }
@@ -632,25 +720,23 @@
       margin-top: 4px;
     }
     .hud-pose-pill {
-      font-size: 0.65rem;
+      font-size: 0.63rem;
       padding: 2px 6px;
-      border-radius: 10px;
-      background: rgba(0,0,0,0.6);
-      border: 1px solid rgba(255,255,255,0.2);
-      color: var(--muted);
+      background: rgba(10, 15, 29, 0.8);
+      border: 1px solid rgba(75, 123, 255, 0.4);
+      color: #93C5FD;
       font-family: var(--font-mono);
     }
     .hud-pose-pill.done {
-      background: rgba(16, 185, 129, 0.25);
-      border-color: #10b981;
-      color: #6ee7b7;
+      background: rgba(34, 80, 244, 0.45);
+      border-color: #ffffff;
+      color: #ffffff;
     }
 
-    /* Módulo periférico serie (Reemplaza el bloque verde fosforescente de Arduino) */
+    /* Módulo periférico serie (Blueprint Hardware Box) */
     .serial-module {
       background: var(--surface-alt);
       border: 1px solid var(--border);
-      border-radius: 5px;
       padding: 10px 12px;
       display: flex;
       flex-direction: column;
@@ -663,9 +749,9 @@
       gap: 8px;
       flex-wrap: wrap;
       font-family: var(--font-mono);
-      font-size: 0.67rem;
+      font-size: 0.66rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: var(--muted);
     }
     .dip-leds {
@@ -677,39 +763,38 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-size: 0.67rem;
+      font-size: 0.66rem;
       color: var(--text-secondary);
     }
     .led-bulb {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: var(--border-strong);
+      width: 8px;
+      height: 8px;
+      border: 1px solid var(--border-strong);
+      background: var(--surface);
     }
-    .led-bulb.on-verde { background: #10b981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6); }
-    .led-bulb.on-azul { background: #3b82f6; box-shadow: 0 0 6px rgba(59, 130, 246, 0.6); }
-    .led-bulb.on-rojo { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+    .led-bulb.on-verde { background: #10B981; box-shadow: 0 0 6px rgba(16, 185, 129, 0.6); }
+    .led-bulb.on-azul { background: #2250F4; box-shadow: 0 0 6px rgba(34, 80, 244, 0.6); }
+    .led-bulb.on-rojo { background: #EF4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
 
     .lcd-readout {
-      background: #0d1016;
-      border: 1px solid #252b3b;
-      border-left: 3px solid var(--green);
-      border-radius: 4px;
+      background: #0D1326;
+      border: 1px solid var(--accent);
+      border-left: 4px solid var(--accent);
       padding: 8px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
       font-family: var(--font-mono);
-      color: #d8dee9;
+      color: #E2E8F0;
     }
     .lcd-lines {
       display: flex;
       flex-direction: column;
       gap: 2px;
       font-size: 0.82rem;
-      font-weight: 500;
-      letter-spacing: 0.08em;
+      font-weight: 600;
+      letter-spacing: 0.09em;
       line-height: 1.35;
       text-transform: uppercase;
     }
@@ -718,15 +803,15 @@
       overflow: hidden;
     }
     .lcd-line:first-child {
-      color: #8b95a7;
+      color: #93B4FF;
       font-size: 0.72rem;
     }
     .lcd-spec-tag {
       font-family: var(--font-mono);
-      font-size: 0.65rem;
-      color: #5e6778;
+      font-size: 0.63rem;
+      color: #7488B8;
       text-align: right;
-      line-height: 1.3;
+      line-height: 1.35;
     }
 
     /* Lista de presentes */
@@ -740,7 +825,6 @@
     .person-row {
       background: var(--surface-alt);
       border: 1px solid var(--border);
-      border-radius: 5px;
       padding: 9px 12px;
       display: flex;
       justify-content: space-between;
@@ -754,12 +838,11 @@
       min-width: 0;
     }
     .avatar-mono {
-      width: 28px;
-      height: 28px;
-      border-radius: 4px;
-      background: var(--surface-subtle);
-      border: 1px solid var(--border-strong);
-      color: var(--text);
+      width: 30px;
+      height: 30px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      color: var(--accent);
       font-family: var(--font-mono);
       font-size: 0.72rem;
       font-weight: 600;
@@ -768,7 +851,8 @@
       flex-shrink: 0;
     }
     .person-info h3 {
-      font-size: 0.85rem;
+      font-family: var(--font-serif);
+      font-size: 0.94rem;
       font-weight: 600;
       color: var(--text);
       display: flex;
@@ -777,7 +861,7 @@
     }
     .person-meta {
       font-family: var(--font-mono);
-      font-size: 0.71rem;
+      font-size: 0.69rem;
       color: var(--muted);
       display: flex;
       gap: 10px;
@@ -786,7 +870,7 @@
     }
     .person-meta strong {
       color: var(--text-secondary);
-      font-weight: 500;
+      font-weight: 600;
     }
 
     .section-divider {
@@ -799,37 +883,36 @@
     }
     .subsection-title {
       font-family: var(--font-mono);
-      font-size: 0.69rem;
+      font-size: 0.68rem;
       font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: var(--muted);
       display: flex;
       align-items: center;
       justify-content: space-between;
     }
 
-    /* Etiquetas / Badges técnicos */
+    /* Etiquetas / Badges técnicos con corchetes */
     .badge {
       display: inline-flex;
       align-items: center;
       padding: 1px 6px;
-      border-radius: 3px;
       font-family: var(--font-mono);
-      font-size: 0.67rem;
+      font-size: 0.65rem;
       font-weight: 600;
-      letter-spacing: 0.03em;
+      letter-spacing: 0.05em;
       text-transform: uppercase;
       white-space: nowrap;
       border: 1px solid transparent;
     }
-    .badge-green { background: var(--green-soft); color: var(--green-ink); border-color: rgba(16, 185, 129, 0.25); }
-    .badge-blue { background: var(--blue-soft); color: var(--blue-ink); border-color: rgba(59, 130, 246, 0.25); }
-    .badge-amber { background: var(--amber-soft); color: var(--amber-ink); border-color: rgba(245, 158, 11, 0.25); }
-    .badge-red { background: var(--red-soft); color: var(--red-ink); border-color: rgba(239, 68, 68, 0.25); }
+    .badge-green { background: var(--green-soft); color: var(--green-ink); border-color: var(--green); }
+    .badge-blue { background: var(--blue-soft); color: var(--blue-ink); border-color: var(--blue); }
+    .badge-amber { background: var(--amber-soft); color: var(--amber-ink); border-color: var(--amber); }
+    .badge-red { background: var(--red-soft); color: var(--red-ink); border-color: var(--red); }
     .badge-neutral { background: var(--surface-subtle); color: var(--text-secondary); border-color: var(--border); }
 
-    /* Botones */
+    /* Botones Rectos Estilo Plano CAD */
     .btn {
       display: inline-flex;
       align-items: center;
@@ -837,56 +920,57 @@
       gap: 6px;
       background: var(--accent);
       color: #ffffff;
-      border: 1px solid transparent;
+      border: 1px solid var(--accent);
       padding: 6px 12px;
-      border-radius: 4px;
-      font-family: var(--font-sans);
+      font-family: var(--font-mono);
       font-weight: 500;
-      font-size: 0.78rem;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
       cursor: pointer;
       white-space: nowrap;
-      transition: background-color 0.15s ease, border-color 0.15s ease;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
     }
     .btn:hover { background: var(--accent-hover); }
-    .btn-sm { padding: 4px 9px; font-size: 0.74rem; }
-    .btn-green { background: var(--green); color: #ffffff; }
-    .btn-green:hover { filter: brightness(1.08); }
-    .btn-amber { background: var(--amber); color: #ffffff; }
-    .btn-red { background: transparent; border-color: rgba(239, 68, 68, 0.4); color: var(--bad); }
+    .btn-sm { padding: 4px 9px; font-size: 0.68rem; }
+    .btn-green { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    .btn-green:hover { background: var(--accent-hover); }
+    .btn-amber { background: var(--amber); border-color: var(--amber); color: #ffffff; }
+    .btn-red { background: transparent; border-color: var(--red); color: var(--bad); }
     .btn-red:hover { background: var(--red-soft); }
     .btn-outline {
       background: var(--surface);
-      border-color: var(--border-strong);
+      border-color: var(--border-rule);
       color: var(--text);
     }
     .btn-outline:hover {
-      background: var(--surface-subtle);
-      border-color: var(--muted);
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
     }
 
-    /* Bitácora de eventos (formato tabla/log de auditoría) */
+    /* Bitácora de eventos */
     .events-feed {
       display: flex;
       flex-direction: column;
       max-height: 610px;
       overflow-y: auto;
       border: 1px solid var(--border);
-      border-radius: 4px;
       background: var(--surface-alt);
     }
     .event-row {
       padding: 7px 10px;
       border-bottom: 1px solid var(--border);
-      font-size: 0.77rem;
+      font-size: 0.78rem;
       display: grid;
-      grid-template-columns: 58px auto 1fr;
+      grid-template-columns: 60px auto 1fr;
       align-items: center;
       gap: 8px;
     }
     .event-row:last-child { border-bottom: 0; }
     .event-time {
       font-family: var(--font-mono);
-      font-size: 0.71rem;
+      font-size: 0.69rem;
       color: var(--muted);
       font-variant-numeric: tabular-nums;
     }
@@ -896,6 +980,7 @@
       flex-direction: column;
     }
     .event-subject {
+      font-family: var(--font-serif);
       font-weight: 600;
       color: var(--text);
       overflow: hidden;
@@ -904,16 +989,15 @@
     }
     .event-origin {
       font-family: var(--font-mono);
-      font-size: 0.68rem;
+      font-size: 0.66rem;
       color: var(--muted);
     }
 
     .loan-row {
       background: var(--surface-alt);
       border: 1px solid var(--border);
-      border-radius: 4px;
       padding: 7px 10px;
-      font-size: 0.78rem;
+      font-size: 0.8rem;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -922,11 +1006,12 @@
 
     .empty-state {
       padding: 14px 12px;
-      border: 1px dashed var(--border);
-      border-radius: 4px;
+      border: 1px dashed var(--border-rule);
       color: var(--muted);
-      font-size: 0.78rem;
+      font-family: var(--font-mono);
+      font-size: 0.71rem;
       text-align: center;
+      letter-spacing: 0.03em;
     }
 
     /* Formularios y Tablas */
@@ -942,20 +1027,19 @@
     }
     .field-label {
       font-family: var(--font-mono);
-      font-size: 0.69rem;
-      font-weight: 500;
+      font-size: 0.67rem;
+      font-weight: 600;
       text-transform: uppercase;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.06em;
       color: var(--text-secondary);
     }
     input, select {
       background: var(--field);
-      border: 1px solid var(--border-strong);
+      border: 1px solid var(--border-rule);
       color: var(--text);
       padding: 7px 10px;
-      border-radius: 4px;
-      font-family: var(--font-sans);
-      font-size: 0.82rem;
+      font-family: var(--font-mono);
+      font-size: 0.78rem;
       width: 100%;
     }
     input:focus, select:focus {
@@ -967,7 +1051,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 0.81rem;
+      font-size: 0.82rem;
     }
     th, td {
       text-align: left;
@@ -978,21 +1062,133 @@
       font-family: var(--font-mono);
       color: var(--muted);
       font-weight: 600;
-      font-size: 0.69rem;
+      font-size: 0.67rem;
       text-transform: uppercase;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       background: var(--surface-alt);
     }
     tbody tr:last-child td { border-bottom: 0; }
     tbody tr:hover td { background: var(--surface-alt); }
 
+    /* ==========================================================================
+       SECCIÓN DE DESGLOSE ISOMÉTRICO (MAKING SOFTWARE EXPLODED BLUEPRINT)
+       ========================================================================== */
+    .blueprint-showcase {
+      margin-top: 18px;
+      border: 1px solid var(--border);
+      border-top: 2px solid var(--accent);
+      background: var(--surface);
+    }
+    .blueprint-grid-layout {
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      min-height: 390px;
+    }
+    .blueprint-editorial-col {
+      padding: 18px 20px;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 14px;
+      background: var(--bg);
+    }
+    .blueprint-canvas-col {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px 36px;
+      overflow: hidden;
+    }
+    .iso-layer {
+      transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease, filter 0.25s ease;
+      cursor: pointer;
+    }
+    .iso-layer:hover .iso-surface {
+      fill: var(--accent-strong) !important;
+    }
+    .iso-dimmed {
+      opacity: 0.24 !important;
+    }
+    .iso-focused {
+      filter: drop-shadow(0px 5px 10px rgba(34, 80, 244, 0.24));
+    }
+    .layer-pill-btn {
+      font-family: var(--font-mono);
+      font-size: 0.67rem;
+      text-align: left;
+      padding: 6px 8px;
+      border: 1px solid var(--border-rule);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .layer-pill-btn:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    .layer-pill-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #ffffff;
+      font-weight: 600;
+    }
+    input[type="range"].ms-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      background: var(--accent-mid);
+      border: 0;
+      padding: 0;
+      cursor: pointer;
+    }
+    input[type="range"].ms-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      background: var(--accent);
+      border: 2px solid var(--surface);
+      box-shadow: 0 0 0 1px var(--accent);
+      cursor: pointer;
+    }
+
+    /* Pie de página estilo Making Software con Dithering */
+    .ms-footer {
+      margin-top: 28px;
+      padding-top: 12px;
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .ms-dither-strip {
+      margin-top: 12px;
+      height: 22px;
+      width: 100%;
+      background-image:
+        radial-gradient(var(--dither-a) 1px, transparent 0),
+        radial-gradient(var(--dither-b) 1px, transparent 0);
+      background-size: 4px 4px;
+      background-position: 0 0, 2px 2px;
+    }
+
     @media (max-width: 1220px) {
       .grid-dashboard { grid-template-columns: 1fr !important; }
+      .blueprint-grid-layout { grid-template-columns: 1fr; }
+      .blueprint-editorial-col { border-right: 0; border-bottom: 1px solid var(--border); }
       .metrics-strip { grid-template-columns: repeat(2, 1fr); }
       .metric-cell { border-bottom: 1px solid var(--border); }
     }
     @media (max-width: 760px) {
-      .topbar, .subbar, main { padding-left: 14px; padding-right: 14px; }
+      .topbar, .subbar-wrap, main { padding-left: 14px; padding-right: 14px; }
       .metrics-strip { grid-template-columns: 1fr; }
       .metric-cell { border-right: 0; }
     }
@@ -1003,7 +1199,6 @@
 </head>
 <body>
   <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
-    <!-- Isotipo Tecnológico UTN -->
     <symbol id="i-utn" viewBox="0 0 24 24">
       <line x1="12" y1="2.5" x2="12" y2="21.5" />
       <line x1="3.5" y1="12" x2="20.5" y2="12" />
@@ -1016,93 +1211,106 @@
   </svg>
 
   <div class="shell">
-    <!-- BARRA INSTITUCIONAL SUPERIOR -->
+    <!-- BARRA INSTITUCIONAL SUPERIOR (ESTILO MAKING SOFTWARE) -->
     <header class="topbar">
       <div class="brand-group">
-        <div class="utn-mark" title="Universidad Tecnológica Nacional — Facultad Regional Córdoba">
-          <svg><use href="#i-utn"/></svg>
+        <div class="brand-eyebrow">
+          <span>[ UTN · FACULTAD REGIONAL CÓRDOBA · ING. EN SISTEMAS ]</span>
         </div>
-        <div class="brand-titles">
-          <span class="brand-eyebrow">UTN · Facultad Regional Córdoba · Dpto. Ing. en Sistemas de Información</span>
-          <h1>Laboratorio de Investigación de Software (LIS)</h1>
-        </div>
+        <h1 class="pixel-brand-title">
+          LIS · FACENET
+          <span class="pixel-brand-tag">REF. MANUAL v2.4</span>
+        </h1>
       </div>
 
-      <div class="topbar-controls">
-        <div class="mode-selector-wrap" title="Estado operativo de la sala">
-          <span class="dot" id="dot-modo-lab"></span>
-          <span>Sala:</span>
-          <select id="sel-modo-lab" aria-label="Estado operativo del laboratorio" onchange="cambiarModoLab(this.value)">
-            <option value="disponible">Disponible</option>
-            <option value="reunion">En reunión</option>
-            <option value="no_molestar">Acceso restringido</option>
-          </select>
-        </div>
+      <div class="topbar-right">
+        <p class="manual-subtitle">
+          Manual técnico operativo y consola de visión artificial de borde.<br />
+          <em>MediaPipe BlazeFace · InceptionResnetV1 (512-D) · Portero HTTP.</em>
+        </p>
+        <div class="topbar-controls">
+          <div class="mode-selector-wrap" title="Estado operativo de la sala">
+            <span class="dot" id="dot-modo-lab"></span>
+            <span>SALA:</span>
+            <select id="sel-modo-lab" aria-label="Estado operativo del laboratorio" onchange="cambiarModoLab(this.value)">
+              <option value="disponible">Disponible</option>
+              <option value="reunion">En reunión</option>
+              <option value="no_molestar">Acceso restringido</option>
+            </select>
+          </div>
 
-        <div class="status-chip">
-          <span class="dot" id="dot-portero"></span>
-          <span id="lbl-portero">Nodo Portero: En línea</span>
-        </div>
+          <div class="status-chip">
+            <span class="dot" id="dot-portero"></span>
+            <span id="lbl-portero">Nodo Portero: En línea</span>
+          </div>
 
-        <div class="status-chip">
-          <span>Inferencia</span>
-          <strong id="lbl-fps">0.0</strong>
-          <span>fps</span>
-        </div>
+          <div class="status-chip">
+            <span>INFERENCIA</span>
+            <strong id="lbl-fps">0.0</strong>
+            <span>FPS</span>
+          </div>
 
-        <div class="status-chip">
-          <span>Eventos</span>
-          <strong id="lbl-eventos">0</strong>
-        </div>
+          <div class="status-chip">
+            <span>EVENTOS</span>
+            <strong id="lbl-eventos">0</strong>
+          </div>
 
-        <button id="btn-tema" class="icon-btn" onclick="alternarTema()" aria-label="Alternar esquema de color" title="Alternar tema claro / oscuro">
-          <svg class="i ico-luna"><use href="#i-moon"/></svg>
-          <svg class="i ico-sol"><use href="#i-sun"/></svg>
-        </button>
+          <button id="btn-tema" class="icon-btn" onclick="alternarTema()" aria-label="Alternar esquema de color" title="Alternar modo Papel Claro / Plano Nocturno">
+            <svg class="i ico-luna"><use href="#i-moon"/></svg>
+            <svg class="i ico-sol"><use href="#i-sun"/></svg>
+          </button>
+        </div>
       </div>
     </header>
 
-    <!-- SUB-BARRA DE NAVEGACIÓN Y PIZARRA -->
-    <div class="subbar">
-      <nav class="nav-tabs" aria-label="Secciones de la consola">
-        <button class="tab-btn active" onclick="cambiarVista('pared', this)">
-          <span class="tab-idx">01</span>Monitor de Sala
-        </button>
-        <button class="tab-btn" onclick="cambiarVista('perfiles', this)">
-          <span class="tab-idx">02</span>Padrón y Biometría
-        </button>
-        <button class="tab-btn" onclick="cambiarVista('inventario', this)">
-          <span class="tab-idx">03</span>Inventario y Pizarra
-        </button>
-        <button class="tab-btn" onclick="cambiarVista('puerta', this)">
-          <span class="tab-idx">04</span>Terminal PIN y Sensores
-        </button>
-      </nav>
+    <!-- SEPARADOR PERFORADO Y SUB-BARRA DE NAVEGACIÓN -->
+    <div class="subbar-wrap">
+      <div class="perforated-rule"></div>
+      <div class="subbar">
+        <nav class="nav-tabs" aria-label="Secciones de la consola">
+          <button class="tab-btn active" onclick="cambiarVista('pared', this)">
+            <span class="tab-idx">01</span>Monitor de Sala
+          </button>
+          <button class="tab-btn" onclick="cambiarVista('perfiles', this)">
+            <span class="tab-idx">02</span>Padrón y Biometría
+          </button>
+          <button class="tab-btn" onclick="cambiarVista('inventario', this)">
+            <span class="tab-idx">03</span>Inventario y Pizarra
+          </button>
+          <button class="tab-btn" onclick="cambiarVista('puerta', this)">
+            <span class="tab-idx">04</span>Terminal PIN y Sensores
+          </button>
+          <button class="tab-btn" onclick="cambiarVista('acerca', this)">
+            <span class="tab-idx">05</span>Acerca de
+          </button>
+        </nav>
 
-      <div class="aviso-cinta" id="cinta-aviso" onclick="cambiarVista('inventario', document.querySelectorAll('.tab-btn')[2])" title="Ir a pizarra de avisos">
-        <span class="aviso-tag">Pizarra</span>
-        <span id="txt-cinta-aviso">Sin avisos activos</span>
+        <div class="aviso-cinta" id="cinta-aviso" onclick="cambiarVista('inventario', document.querySelectorAll('.tab-btn')[2])" title="Ir a pizarra de avisos">
+          <span class="aviso-tag">[ PIZARRA ]</span>
+          <span id="txt-cinta-aviso">Sin avisos activos</span>
+        </div>
       </div>
+      <div class="perforated-rule"></div>
     </div>
 
     <main>
       <div id="banner-enrolamiento" class="enroll-banner">
         <div style="flex:1;">
-          <strong id="enroll-titulo" style="font-family:var(--font-mono); font-size:0.78rem; letter-spacing:0.04em;">CAPTURA BIOMÉTRICA EN CURSO</strong>
-          <div id="enroll-detalle" style="font-size:0.8rem; margin-top:2px;">Posicione el rostro frente a la cámara para adquirir las muestras vectoriales.</div>
+          <strong id="enroll-titulo" style="font-family:var(--font-mono); font-size:0.76rem; letter-spacing:0.06em; color:var(--accent);">[ CAPTURA BIOMÉTRICA EN CURSO ]</strong>
+          <div id="enroll-detalle" style="font-size:0.84rem; margin-top:2px;">Posicione el rostro frente a la cámara para adquirir las muestras vectoriales.</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px;">
-          <span class="badge badge-amber" id="enroll-progreso">0 / 5</span>
-          <button class="btn btn-sm btn-outline" style="border-color:rgba(239,68,68,0.5); color:#ef4444; padding:3px 10px; font-size:0.74rem;" onclick="cancelarEnrolamiento()">Cancelar captura</button>
+          <span class="badge badge-blue" id="enroll-progreso">0 / 5</span>
+          <button class="btn btn-sm btn-red" onclick="cancelarEnrolamiento()">Cancelar captura</button>
         </div>
       </div>
 
-      <!-- VISTA 01: MONITOR DE SALA EN VIVO -->
+      <!-- VISTA 01: MONITOR DE SALA EN VIVO + DESGLOSE ISOMÉTRICO -->
       <section id="vista-pared" class="view active">
         <!-- Tira consolidada de telemetría -->
         <div class="metrics-strip">
           <div class="metric-cell">
-            <span class="metric-label">Ocupación actual</span>
+            <span class="metric-label"><span>[ 01 · OCUPACIÓN ]</span><span>FIG_A</span></span>
             <div class="metric-value-row">
               <strong class="metric-value" id="kpi-presentes">0</strong>
               <span class="metric-sub">integrantes en sala</span>
@@ -1110,15 +1318,15 @@
           </div>
 
           <div class="metric-cell">
-            <span class="metric-label">Instrumental en préstamo</span>
+            <span class="metric-label"><span>[ 02 · INSTRUMENTAL ]</span><span>FIG_B</span></span>
             <div class="metric-value-row">
               <strong class="metric-value" id="kpi-prestamos">0</strong>
-              <span class="metric-sub">equipos fuera de armario</span>
+              <span class="metric-sub">equipos en préstamo</span>
             </div>
           </div>
 
           <div class="metric-cell">
-            <span class="metric-label">Telemetría ambiental</span>
+            <span class="metric-label"><span>[ 03 · TELEMETRÍA ]</span><span>GROVE</span></span>
             <div class="env-inline">
               <span><strong id="val-temp">22.5 °C</strong></span>
               <span><strong id="val-luz">340 lx</strong></span>
@@ -1127,15 +1335,15 @@
           </div>
 
           <div class="metric-cell">
-            <span class="metric-label">Bitácora de eventos</span>
+            <span class="metric-label"><span>[ 04 · EVENT SOURCING ]</span><span>WAL</span></span>
             <div class="metric-value-row">
               <strong class="metric-value" id="kpi-eventos">0</strong>
-              <span class="metric-sub">registros verificados</span>
+              <span class="metric-sub">registros inmutables</span>
             </div>
           </div>
 
           <div class="metric-cell">
-            <span class="metric-label">Tasa de procesamiento</span>
+            <span class="metric-label"><span>[ 05 · INFERENCIA ]</span><span>CPU</span></span>
             <div class="metric-value-row">
               <strong class="metric-value" id="kpi-fps">0.0</strong>
               <span class="metric-sub">fps · InceptionResnetV1</span>
@@ -1148,10 +1356,10 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">CAM</span>
+                <span class="panel-code">FIG_001</span>
                 <span class="panel-title">Estación de Visión · MediaPipe + FaceNet</span>
               </div>
-              <button class="btn btn-outline btn-sm" onclick="tocarSensorTouch()">Disparar sensor táctil</button>
+              <button class="btn btn-outline btn-sm" onclick="tocarSensorTouch()">[ TOUCH SENSOR ]</button>
             </div>
 
             <div class="panel-body">
@@ -1161,7 +1369,7 @@
                   <span class="cam-toolbar-label">Entrada de video</span>
                   <div style="display:flex; gap:8px; align-items:center;">
                     <span id="badge-fuente-activa" class="badge badge-neutral">LOCAL #0</span>
-                    <select id="sel-fuente-camara" style="width:auto; padding:4px 8px; font-size:0.77rem;" onchange="alCambiarSelectorCamara(this.value)">
+                    <select id="sel-fuente-camara" style="width:auto; padding:4px 8px; font-size:0.74rem;" onchange="alCambiarSelectorCamara(this.value)">
                       <option value="0">Cámara 0 (Servidor local)</option>
                       <option value="1">Cámara 1 (Puerto USB)</option>
                       <option value="2">Cámara 2 (Auxiliar)</option>
@@ -1173,10 +1381,10 @@
                 </div>
 
                 <div class="cam-toolbar-row" style="border-top:1px solid var(--border); padding-top:6px;">
-                  <span class="cam-toolbar-label">Resolución Reconocimiento (Hot-Swap)</span>
+                  <span class="cam-toolbar-label">Escala Tensor (Hot-Swap)</span>
                   <div style="display:flex; gap:8px; align-items:center;">
                     <span id="badge-res-activa" class="badge badge-blue">160×160 PX</span>
-                    <select id="sel-hotswap-res" style="width:auto; padding:4px 8px; font-size:0.77rem;" onchange="cambiarResolucionHotSwap(this.value)">
+                    <select id="sel-hotswap-res" style="width:auto; padding:4px 8px; font-size:0.74rem;" onchange="cambiarResolucionHotSwap(this.value)">
                       <option value="112">112×112 px (Rápido / Lejos)</option>
                       <option value="128">128×128 px (Equilibrado)</option>
                       <option value="160" selected>160×160 px (Estándar FaceNet)</option>
@@ -1187,7 +1395,7 @@
 
                 <!-- Configuración Stream IP -->
                 <div id="panel-droidcam" style="display:none; gap:8px; align-items:center; padding-top:4px; border-top:1px solid var(--border);">
-                  <input id="inp-url-droidcam" type="text" placeholder="http://192.168.100.18:4747/video" value="http://192.168.100.18:4747/video" style="flex:1; padding:5px 8px; font-family:var(--font-mono); font-size:0.76rem;" />
+                  <input id="inp-url-droidcam" type="text" placeholder="http://192.168.100.18:4747/video" value="http://192.168.100.18:4747/video" style="flex:1; padding:5px 8px; font-family:var(--font-mono); font-size:0.74rem;" />
                   <button class="btn btn-sm" onclick="conectarDroidcam()">Conectar stream</button>
                 </div>
 
@@ -1195,10 +1403,10 @@
                 <div id="panel-camara-navegador" style="display:none; flex-direction:column; gap:6px; padding-top:4px; border-top:1px solid var(--border);">
                   <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
                     <button id="btn-activar-webcam" class="btn btn-green btn-sm" onclick="activarCamaraNavegador()">Iniciar transmisión local</button>
-                    <select id="sel-dispositivos-nav" style="display:none; flex:1; padding:4px 8px; font-size:0.76rem;" onchange="cambiarDispositivoNav(this.value)"></select>
+                    <select id="sel-dispositivos-nav" style="display:none; flex:1; padding:4px 8px; font-size:0.74rem;" onchange="cambiarDispositivoNav(this.value)"></select>
                     <button id="btn-detener-webcam" class="btn btn-red btn-sm" style="display:none;" onclick="detenerCamaraNavegador()">Detener</button>
                   </div>
-                  <div id="lbl-estado-webcam-nav" style="font-size:0.74rem; color:var(--muted);">
+                  <div id="lbl-estado-webcam-nav" style="font-family:var(--font-mono); font-size:0.68rem; color:var(--muted);">
                     Transmite cuadros JPEG desde este dispositivo hacia el motor de inferencia local.
                   </div>
                 </div>
@@ -1207,12 +1415,12 @@
               <div class="video-box">
                 <img id="img-camara" src="/video_feed" alt="Flujo de video del módulo de visión" />
                 <div class="video-Overlay-meta">
-                  <span>BLAZEFACE + VGGFACE2 (512-D)</span>
-                  <span>GESTO: PALMA (INGRESO) / PULGAR (EGRESO)</span>
+                  <span>[ BLAZEFACE + VGGFACE2 512-D ]</span>
+                  <span>[ PALMA: INGRESO · PULGAR: EGRESO ]</span>
                 </div>
                 <!-- HUD de Enrolamiento Guiado por Poses -->
                 <div id="hud-guiado-overlay" class="hud-guiado-overlay" style="display:none;">
-                  <button class="btn btn-sm btn-outline" style="position:absolute; top:10px; right:10px; z-index:10; background:rgba(18,21,28,0.85); border-color:rgba(239,68,68,0.6); color:#ef4444; font-size:0.72rem; padding:4px 8px;" onclick="cancelarEnrolamiento()">✕ Cancelar</button>
+                  <button class="btn btn-sm btn-outline" style="position:absolute; top:10px; right:10px; z-index:10; background:rgba(10,15,29,0.9); border-color:#EF4444; color:#EF4444; font-size:0.68rem; padding:4px 8px; pointer-events:auto;" onclick="cancelarEnrolamiento()">✕ CANCELAR</button>
                   <div class="hud-guiado-oval-container">
                     <svg class="hud-guiado-oval-svg" viewBox="0 0 200 250">
                       <ellipse cx="100" cy="125" rx="80" ry="110" class="hud-oval-bg" />
@@ -1220,7 +1428,7 @@
                     </svg>
                   </div>
                   <div class="hud-guiado-info">
-                    <div id="hud-guiado-paso-badge" class="badge badge-amber">POSE 1 / 5</div>
+                    <div id="hud-guiado-paso-badge" class="badge badge-blue">POSE 1 / 5</div>
                     <div id="hud-guiado-instruccion" class="hud-guiado-instruccion">Mirada al frente</div>
                     <div id="hud-guiado-feedback" class="hud-guiado-feedback">Mantenga el rostro centrado hacia la cámara</div>
                     <div id="hud-guiado-pills" class="hud-guiado-pills"></div>
@@ -1234,7 +1442,7 @@
               <!-- Módulo Serie Arduino UNO -->
               <div class="serial-module">
                 <div class="serial-meta-bar">
-                  <span>Periférico Serie · Arduino UNO (115200 bps)</span>
+                  <span>[ PERIFÉRICO SERIE · ARDUINO UNO 115200 BPS ]</span>
                   <div class="dip-leds">
                     <span class="led-indicator"><span id="led-verde" class="led-bulb"></span>VERDE</span>
                     <span class="led-indicator"><span id="led-azul" class="led-bulb"></span>AZUL</span>
@@ -1247,7 +1455,7 @@
                     <div id="lcd-l2" class="lcd-line">EN ESPERA       </div>
                   </div>
                   <div class="lcd-spec-tag">
-                    GROVE I²C<br />LCD 16×2
+                    [ GROVE I²C ]<br />LCD 16×2 RGB
                   </div>
                 </div>
               </div>
@@ -1258,10 +1466,10 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">SALA</span>
+                <span class="panel-code">FIG_002</span>
                 <span class="panel-title">Nómina de Presencia Activa</span>
               </div>
-              <span class="badge badge-green"><span id="cnt-presentes">0</span>&nbsp;EN SALA</span>
+              <span class="badge badge-blue">[ <span id="cnt-presentes">0</span>&nbsp;EN SALA ]</span>
             </div>
 
             <div class="panel-body">
@@ -1269,8 +1477,8 @@
 
               <div class="section-divider">
                 <div class="subsection-title">
-                  <span>Instrumental retirado del armario</span>
-                  <button class="btn btn-outline btn-sm" onclick="cambiarVista('inventario', document.querySelectorAll('.tab-btn')[2])">Gestionar inventario</button>
+                  <span>[ INSTRUMENTAL FUERA DE ARMARIO ]</span>
+                  <button class="btn btn-outline btn-sm" onclick="cambiarVista('inventario', document.querySelectorAll('.tab-btn')[2])">Ver inventario</button>
                 </div>
                 <div id="resumen-prestamos" style="display:flex; flex-direction:column; gap:6px;"></div>
               </div>
@@ -1281,16 +1489,34 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">LOG</span>
+                <span class="panel-code">FIG_003</span>
                 <span class="panel-title">Bitácora de Eventos</span>
               </div>
-              <span class="badge badge-neutral">JSONL · APPEND-ONLY</span>
+              <span class="badge badge-neutral">[ JSONL · APPEND-ONLY ]</span>
             </div>
 
             <div class="panel-body">
               <div id="lista-eventos" class="events-feed"></div>
             </div>
           </div>
+        </div>
+
+        <!-- Banner de derivación rápida al Manual de Arquitectura -->
+        <div style="margin-top: 14px; padding: 12px 16px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--accent); display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span class="panel-code">FIG_CAD</span>
+            <div style="display: flex; flex-direction: column;">
+              <span style="font-family: var(--font-mono); font-size: 0.74rem; font-weight: 600; color: var(--text); letter-spacing: 0.04em;">
+                MANUAL DE ARQUITECTURA TÉCNICA &amp; DESGLOSE ISOMÉTRICO (EXPLODED CAD VIEW)
+              </span>
+              <span style="font-family: var(--font-serif); font-size: 0.8rem; color: var(--muted); font-style: italic;">
+                Vea la descomposición en 4 capas de visión artificial y hardware embebido en la pestaña dedicada.
+              </span>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="cambiarVista('acerca', document.querySelectorAll('.tab-btn')[4])">
+            [ CONSULTAR MANUAL EN PESTAÑA 05 ──────► ]
+          </button>
         </div>
       </section>
 
@@ -1300,11 +1526,14 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">ALTA</span>
+                <span class="panel-code">FIG_005</span>
                 <span class="panel-title">Registro y Actualización de Integrante</span>
               </div>
             </div>
             <div class="panel-body">
+              <p class="editorial-lead" style="margin-bottom: 4px;">
+                Para preservar la privacidad de los integrantes del laboratorio, el sistema transforma cada captura facial en un vector matemático de 512 dimensiones y descarta el cuadro de video inmediatamente en memoria RAM.
+              </p>
               <div class="field-group">
                 <label class="field-label" for="inp-nombre">Nombre y Apellido</label>
                 <input id="inp-nombre" type="text" placeholder="Ej.: Ing. Juan Pérez / Jonás..." />
@@ -1323,14 +1552,14 @@
                   <input id="inp-pin" type="password" maxlength="6" value="1234" />
                 </div>
               </div>
-              <label style="display:flex; align-items:flex-start; gap:8px; font-size:0.78rem; color:var(--text-secondary); cursor:pointer; padding:4px 0;">
-                <input id="inp-consentimiento" type="checkbox" checked style="width:auto; margin-top:2px;" />
+              <label style="display:flex; align-items:flex-start; gap:8px; font-size:0.82rem; color:var(--text-secondary); cursor:pointer; padding:4px 0;">
+                <input id="inp-consentimiento" type="checkbox" checked style="width:auto; margin-top:3px;" />
                 <span>El integrante presta conformidad para el almacenamiento local de descriptores vectoriales (512-D), sin retención de imágenes fotográficas.</span>
               </label>
-              <div style="padding:9px 11px; border-radius:5px; background:var(--surface-alt); border:1px solid var(--border); font-size:0.77rem; color:var(--text-secondary); margin-bottom:6px;">
+              <div style="padding:9px 11px; background:var(--surface-alt); border:1px solid var(--border); font-size:0.8rem; color:var(--text-secondary); margin-bottom:6px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
                   <span><strong>Captura Multi-Resolución Automática:</strong> Al enrolar se guardan en simultáneo las 4 escalas (<code>112px</code>, <code>128px</code>, <code>160px</code> y <code>224px</code>).</span>
-                  <select id="sel-hotswap-res-alta" style="width:auto; padding:4px 8px; font-size:0.76rem;" onchange="cambiarResolucionHotSwap(this.value)">
+                  <select id="sel-hotswap-res-alta" style="width:auto; padding:4px 8px; font-size:0.74rem;" onchange="cambiarResolucionHotSwap(this.value)">
                     <option value="112">Reconocer en: 112×112 px</option>
                     <option value="128">Reconocer en: 128×128 px</option>
                     <option value="160" selected>Reconocer en: 160×160 px</option>
@@ -1339,7 +1568,7 @@
                 </div>
               </div>
               <div style="display:flex; gap:8px; flex-wrap:wrap; padding-top:4px;">
-                <button class="btn btn-green" onclick="guardarPerfilGuiado(5)">Alta Guiada (5 poses bancarias)</button>
+                <button class="btn btn-green" onclick="guardarPerfilGuiado(5)">Alta Guiada (5 poses)</button>
                 <button class="btn btn-outline" onclick="guardarPerfilGuiado(3)">Alta Rápida (3 poses)</button>
                 <button class="btn btn-outline" onclick="guardarPerfil(true)">Ráfaga clásica (5 fotos)</button>
                 <button class="btn btn-outline" onclick="guardarPerfil(false)">Solo con PIN</button>
@@ -1350,7 +1579,7 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">PADRÓN</span>
+                <span class="panel-code">FIG_006</span>
                 <span class="panel-title">Nómina de Integrantes y Estado de Vectores</span>
               </div>
             </div>
@@ -1380,7 +1609,7 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">INV</span>
+                <span class="panel-code">FIG_007</span>
                 <span class="panel-title">Control de Instrumental y Kits de Laboratorio</span>
               </div>
             </div>
@@ -1396,7 +1625,7 @@
                 </div>
                 <button class="btn" onclick="registrarMovimientoInventario('retiro')">Registrar préstamo</button>
               </div>
-              <div style="overflow-x:auto; border:1px solid var(--border); border-radius:4px;">
+              <div style="overflow-x:auto; border:1px solid var(--border);">
                 <table>
                   <thead>
                     <tr>
@@ -1415,7 +1644,7 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">AVISOS</span>
+                <span class="panel-code">FIG_008</span>
                 <span class="panel-title">Pizarra Operativa del Laboratorio</span>
               </div>
             </div>
@@ -1446,12 +1675,12 @@
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">PIN</span>
+                <span class="panel-code">FIG_009</span>
                 <span class="panel-title">Terminal de Acceso Manual (Respaldo sin Cámara)</span>
               </div>
             </div>
             <div class="panel-body">
-              <p style="font-size:0.8rem; color:var(--text-secondary);">
+              <p class="editorial-lead">
                 Permite asentar ingresos y egresos mediante código de identificación personal cuando el servidor de visión se encuentra apagado o por preferencia del integrante.
               </p>
               <div class="form-grid">
@@ -1475,20 +1704,20 @@
                 <button class="btn btn-green" style="flex:1; padding:9px;" onclick="ficharConPin('entrada')">Registrar ingreso</button>
                 <button class="btn btn-outline" style="flex:1; padding:9px;" onclick="ficharConPin('salida')">Registrar egreso</button>
               </div>
-              <div id="msg-pin-res" style="font-family:var(--font-mono); font-size:0.78rem; font-weight:500;"></div>
+              <div id="msg-pin-res" style="font-family:var(--font-mono); font-size:0.76rem; font-weight:600;"></div>
             </div>
           </div>
 
           <div class="panel">
             <div class="panel-header">
               <div class="panel-title-group">
-                <span class="panel-code">AMB</span>
+                <span class="panel-code">FIG_010</span>
                 <span class="panel-title">Inyección de Telemetría Ambiental (Nodo Torre de Estado)</span>
               </div>
             </div>
             <div class="panel-body">
-              <p style="font-size:0.8rem; color:var(--text-secondary);">
-                Emula el envío periódico de lecturas físicas desde el nodo Arduino UNO + Grove hacia el servicio Portero.
+              <p class="editorial-lead">
+                Emula el envío periódico de lecturas físicas desde el nodo Arduino UNO + Grove hacia el servicio Portero de borde.
               </p>
               <div class="form-grid">
                 <div class="field-group">
@@ -1511,6 +1740,375 @@
           </div>
         </div>
       </section>
+
+      <!-- VISTA 05: ACERCA DE (MANUAL EDITORIAL & ARQUITECTURA ISOMÉTRICA) -->
+      <section id="vista-acerca" class="view">
+        <div class="panel" style="margin-bottom: 18px;">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-code">FIG_011</span>
+              <span class="panel-title">Manual de Referencia · Arquitectura Integral de Software y Hardware de Borde</span>
+            </div>
+            <span class="badge badge-blue">[ SPECIFICATION MANUAL · REV 2026 ]</span>
+          </div>
+          <div class="panel-body" style="background: var(--bg); padding: 18px 24px;">
+            <p class="editorial-lead" style="max-width: 90ch; font-size: 1.05rem; line-height: 1.62;">
+              Have you ever wondered how an intelligent laboratory attendance system can guarantee complete personal privacy without sacrificing biometric precision or computational efficiency? By decoupling optical capture from storage and isolating each functional layer along an append-only event pipeline, LIS-FaceNet reconciles edge intelligence with absolute cryptographic privacy.
+            </p>
+          </div>
+        </div>
+
+        <!-- ======================================================================
+             MÓDULO INTERACTIVO DE DESGLOSE ISOMÉTRICO (MAKING SOFTWARE BLUEPRINT)
+             ====================================================================== -->
+        <div class="blueprint-showcase" style="margin-top: 0; margin-bottom: 22px;">
+          <div class="panel-header">
+            <div class="panel-title-group">
+              <span class="panel-code">FIG_012</span>
+              <span class="panel-title">Desglose Isométrico Interactivo en Tiempo Real (Exploded CAD View)</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <button id="btn-iso-scene-pipe" class="btn btn-sm" onclick="cambiarEscenaIso('pipeline')">[ 01 · PIPELINE FACENET ]</button>
+              <button id="btn-iso-scene-hw" class="btn btn-outline btn-sm" onclick="cambiarEscenaIso('hardware')">[ 02 · NODO HARDWARE / PORTERO ]</button>
+            </div>
+          </div>
+
+          <div class="blueprint-grid-layout">
+            <!-- Columna Editorial Izquierda con Capitular y Controles de Desglose -->
+            <div class="blueprint-editorial-col">
+              <div>
+                <p id="iso-editorial-text" class="editorial-lead" style="font-size: 0.88rem; line-height: 1.55;">
+                  Have you ever wondered how LIS-FaceNet verifies identity in milliseconds without storing a single photograph on disk? Each video frame passes through four isolated mathematical layers along our edge pipeline.
+                </p>
+
+                <div style="margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border);">
+                  <div class="subsection-title" style="margin-bottom: 8px;">
+                    <span>[ INSPECCIONAR LÁMINA ISOMÉTRICA ]</span>
+                    <span id="iso-active-layer-label" style="color: var(--accent);">VISTA COMPLETA</span>
+                  </div>
+                  <div id="iso-layer-buttons" style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;"></div>
+                </div>
+              </div>
+
+              <!-- Control Deslizador de Eje Z -->
+              <div style="padding: 12px; background: var(--surface); border: 1px solid var(--border);">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                  <span style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 600; color: var(--text);">
+                    SEPARACIÓN DE CAPAS (EJE Z)
+                  </span>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="iso-explode-pct" style="font-family: var(--font-mono); font-size: 0.74rem; font-weight: 700; color: var(--accent);">100%</span>
+                    <button id="btn-iso-toggle" class="btn btn-outline btn-sm" onclick="alternarDesgloseIso()">[ ENSAMBLAR ]</button>
+                  </div>
+                </div>
+                <input id="iso-explode-range" type="range" min="0" max="100" value="100" class="ms-slider" oninput="actualizarDesgloseIso(this.value)" />
+                <div style="display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 0.63rem; color: var(--muted); margin-top: 4px;">
+                  <span>0.0 · ENSAMBLADO</span>
+                  <span>PROYECCIÓN ISO 30°</span>
+                  <span>1.0 · DESGLOSADO</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Columna Derecha: Plano Milimetrado con SVG Isométrico Desglosable -->
+            <div class="blueprint-canvas-col blueprint-grid-bg">
+              <div id="iso-margin-left" class="fig-vertical" style="position: absolute; left: 12px; top: 16px;">
+                FIG_012 · REV 2026
+              </div>
+              <div id="iso-margin-right" class="fig-vertical" style="position: absolute; right: 12px; top: 16px;">
+                [ PIPELINE BIOMÉTRICO 512-D ]
+              </div>
+
+              <svg id="iso-blueprint-svg" viewBox="0 0 540 330" style="width: 100%; max-width: 680px; height: 330px;">
+                <defs>
+                  <marker id="cad-arrow" viewBox="0 0 8 8" refX="7" refY="4" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 1 L 7 4 L 0 7 z" fill="var(--accent)" />
+                  </marker>
+                  <pattern id="cad-matrix" width="12" height="12" patternUnits="userSpaceOnUse">
+                    <rect x="0" y="0" width="6" height="6" fill="var(--accent-mid)" />
+                    <rect x="6" y="6" width="6" height="6" fill="var(--accent-mid)" />
+                  </pattern>
+                </defs>
+
+                <!-- Ejes verticales punteados de ensamblaje -->
+                <g stroke="var(--accent)" stroke-width="1" stroke-dasharray="3 3" opacity="0.45">
+                  <line id="cad-axis-l" x1="170" y1="62" x2="170" y2="265" />
+                  <line id="cad-axis-r" x1="370" y1="62" x2="370" y2="265" />
+                  <line id="cad-axis-c" x1="270" y1="62" x2="270" y2="265" stroke-dasharray="2 4" />
+                </g>
+
+                <!-- ESCENA A: PIPELINE BIOMÉTRICO FACENET -->
+                <g id="iso-group-pipeline">
+                  <!-- CAPA 3 (FONDO): EMBEDDING 512-D & SQLITE WAL -->
+                  <g class="iso-layer" id="pipe-layer-3" onmouseenter="enfocarCapaIso(3)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(3)">
+                    <polygon class="iso-surface" points="270,152 374,204 270,256 166,204" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4" />
+                    <polyline points="166,204 166,210 270,262 374,210 374,204" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.2" />
+                    <polygon points="270,166 346,204 270,242 194,204" fill="url(#cad-matrix)" stroke="var(--accent)" stroke-width="1" />
+                    <g class="iso-callout">
+                      <line x1="162" y1="204" x2="112" y2="204" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="106" y="207" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">SQLITE WAL · L2</text>
+                      <line x1="378" y1="204" x2="422" y2="204" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text id="cad-lbl-eventos" x="427" y="207" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">512-D VECTOR</text>
+                    </g>
+                  </g>
+
+                  <!-- CAPA 2: KERNEL CONVOLUCIONAL / ESCALA TENSOR HOT-SWAP -->
+                  <g class="iso-layer" id="pipe-layer-2" onmouseenter="enfocarCapaIso(2)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(2)">
+                    <polygon class="iso-surface" points="270,128 364,175 270,222 176,175" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.35" />
+                    <path d="M 206,175 C 236,175 248,120 270,120 C 292,120 304,175 334,175" fill="var(--accent-strong)" stroke="var(--accent)" stroke-width="1.4" />
+                    <path d="M 226,185 C 246,185 258,132 270,132 C 282,132 294,185 314,185" fill="none" stroke="var(--accent)" stroke-width="1" stroke-dasharray="2 2" />
+                    <g class="iso-callout">
+                      <line x1="302" y1="142" x2="422" y2="142" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text id="cad-lbl-res" x="427" y="145" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">TENSOR 160×160 PX</text>
+                    </g>
+                  </g>
+
+                  <!-- CAPA 1: DETECTOR MEDIAPIPE BLAZEFACE + POSES -->
+                  <g class="iso-layer" id="pipe-layer-1" onmouseenter="enfocarCapaIso(1)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(1)">
+                    <polygon class="iso-surface" points="270,100 364,147 270,194 176,147" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.3" />
+                    <polygon points="270,114 322,140 270,166 218,140" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.1" stroke-dasharray="3 2" />
+                    <circle cx="255" cy="136" r="2.8" fill="var(--accent)" />
+                    <circle cx="285" cy="136" r="2.8" fill="var(--accent)" />
+                    <circle cx="270" cy="145" r="2.8" fill="var(--accent)" />
+                    <circle cx="260" cy="153" r="2.2" fill="var(--accent)" />
+                    <circle cx="280" cy="153" r="2.2" fill="var(--accent)" />
+                    <g class="iso-callout">
+                      <line x1="172" y1="147" x2="112" y2="147" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="106" y="150" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">BLAZEFACE + POSE</text>
+                    </g>
+                  </g>
+
+                  <!-- CAPA 0 (SUPERIOR): ÓPTICA DE CAPTURA / FRAME STREAM -->
+                  <g class="iso-layer" id="pipe-layer-0" onmouseenter="enfocarCapaIso(0)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(0)">
+                    <polygon class="iso-surface" points="270,64 374,116 270,168 166,116" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.45" />
+                    <polyline points="166,116 166,121 270,173 374,121 374,116" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.2" />
+                    <ellipse cx="270" cy="116" rx="42" ry="21" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.25" />
+                    <ellipse cx="270" cy="116" rx="16" ry="8" fill="var(--accent-strong)" stroke="var(--accent)" stroke-width="1.1" />
+                    <g class="iso-callout">
+                      <line x1="230" y1="84" x2="112" y2="84" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text id="cad-lbl-cam" x="106" y="87" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">ENTRADA ÓPTICA</text>
+                      <line x1="376" y1="116" x2="422" y2="116" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text id="cad-lbl-fps" x="427" y="119" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">STREAM RGB</text>
+                    </g>
+                  </g>
+                </g>
+
+                <!-- ESCENA B: HARDWARE FICHADOR & NODO PORTERO -->
+                <g id="iso-group-hardware" style="display: none;">
+                  <g class="iso-layer" id="hw-layer-3" onmouseenter="enfocarCapaIso(3)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(3)">
+                    <polygon class="iso-surface" points="270,152 374,204 270,256 166,204" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.4" />
+                    <polyline points="166,204 166,211 270,263 374,211 374,204" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.2" />
+                    <ellipse cx="270" cy="204" rx="34" ry="17" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.1" />
+                    <polygon points="196,226 232,244 214,255 178,237" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.2" />
+                    <g class="iso-callout">
+                      <line x1="162" y1="204" x2="112" y2="204" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="106" y="207" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">CHASIS INFERIOR</text>
+                      <line x1="378" y1="204" x2="422" y2="204" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="427" y="207" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">PORTERO JSONL</text>
+                    </g>
+                  </g>
+
+                  <g class="iso-layer" id="hw-layer-2" onmouseenter="enfocarCapaIso(2)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(2)">
+                    <ellipse class="iso-surface" cx="270" cy="172" rx="76" ry="38" fill="var(--accent-strong)" stroke="var(--accent)" stroke-width="1.4" />
+                    <ellipse cx="270" cy="172" rx="24" ry="12" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.2" />
+                    <g class="iso-callout">
+                      <line x1="348" y1="172" x2="422" y2="172" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="427" y="175" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">UART 115200 BPS</text>
+                    </g>
+                  </g>
+
+                  <g class="iso-layer" id="hw-layer-1" onmouseenter="enfocarCapaIso(1)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(1)">
+                    <ellipse class="iso-surface" cx="270" cy="142" rx="68" ry="34" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.2" stroke-dasharray="4 2" />
+                    <polygon points="270,126 322,152 296,165 244,139" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.15" />
+                    <g class="iso-callout">
+                      <line x1="198" y1="142" x2="112" y2="142" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="106" y="145" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">LCD 16×2 I²C RGB</text>
+                    </g>
+                  </g>
+
+                  <g class="iso-layer" id="hw-layer-0" onmouseenter="enfocarCapaIso(0)" onmouseleave="enfocarCapaIso(capaIsoFijada)" onclick="fijarCapaIso(0)">
+                    <polygon class="iso-surface" points="270,64 374,116 270,168 166,116" fill="var(--surface)" stroke="var(--accent)" stroke-width="1.45" />
+                    <polyline points="166,116 166,121 270,173 374,121 374,116" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.2" />
+                    <polygon points="270,78 338,112 296,133 228,99" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1" />
+                    <polygon points="224,122 262,141 238,153 200,134" fill="var(--accent-mid)" stroke="var(--accent)" stroke-width="1.2" />
+                    <g class="iso-callout">
+                      <line x1="242" y1="74" x2="112" y2="74" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="106" y="77" text-anchor="end" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">TOUCH CAPACITIVO</text>
+                      <line x1="358" y1="108" x2="422" y2="108" stroke="var(--accent)" stroke-width="1" marker-start="url(#cad-arrow)" />
+                      <text x="427" y="111" text-anchor="start" fill="var(--accent)" font-family="var(--font-mono)" font-size="9" font-weight="600">CARCASA SUPERIOR</text>
+                    </g>
+                  </g>
+                </g>
+              </svg>
+
+              <div style="position: absolute; bottom: 8px; left: 28px; right: 28px; display: flex; justify-content: space-between; pointer-events: none; font-family: var(--font-mono); font-size: 0.65rem; color: var(--muted);">
+                <span>HAGA CLIC EN UNA CAPA PARA FIJARLA Y VER SUS COTAS TÉCNICAS</span>
+                <span id="iso-z-coord" style="color: var(--accent);">[ ΔZ = 42px · ESCALA 1:1 ]</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ======================================================================
+             CAPÍTULOS EDITORIALES DEL MANUAL TÉCNICO (ESTILO MAKING SOFTWARE)
+             ====================================================================== -->
+        <div class="grid-dashboard" style="grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px;">
+          <!-- CAPÍTULO 1: LA IDEA & PRIVACIDAD STRICT ZERO-PHOTO -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">CAP_01</span>
+                <span class="panel-title">La Idea y Privacidad Absoluta (Zero-Photo Retention)</span>
+              </div>
+              <span class="badge badge-green">[ PRIVACIDAD POR DISEÑO ]</span>
+            </div>
+            <div class="panel-body">
+              <p class="editorial-lead">
+                Los sistemas biométricos tradicionales exigen que los usuarios confíen en bases de datos centralizadas donde sus rostros quedan almacenados como imágenes fotográficas (.jpg, .png), exponiéndolos a filtraciones irreversibles o uso indebido.
+              </p>
+              <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin-top: 4px;">
+                En <strong>LIS-FaceNet</strong>, la privacidad es una <em>garantía matemática de arquitectura</em>: <strong>nunca se guarda una foto en disco, ni siquiera de forma temporal</strong>. Cuando un integrante se presenta ante la cámara, el cuadro de video reside exclusivamente en la memoria RAM volátil durante milisegundos.
+              </p>
+              <div style="padding: 10px 12px; background: var(--surface-alt); border: 1px solid var(--border); border-left: 3px solid var(--accent); margin: 6px 0;">
+                <div style="font-family: var(--font-mono); font-size: 0.68rem; font-weight: 700; color: var(--accent); text-transform: uppercase;">
+                  [ PROYECCIÓN MATEMÁTICA EN LA ESFERA UNITARIA S⁵¹¹ ]
+                </div>
+                <div style="font-family: var(--font-mono); font-size: 0.76rem; color: var(--text); margin-top: 3px;">
+                  x ∈ ℝ^(H×W×3) ──► BlazeFace ──► InceptionResnetV1 ──► v / ||v||₂ ∈ 𝕊⁵¹¹
+                </div>
+                <div style="font-family: var(--font-serif); font-size: 0.78rem; color: var(--muted); font-style: italic; margin-top: 3px;">
+                  El vector normalizado resultante es unidireccional: es imposible reconstruir la imagen del rostro original a partir de los 512 escalares de punto flotante.
+                </div>
+              </div>
+              <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.55;">
+                Además, el sistema es <strong>100% libre de contacto físico</strong> (*hands-free*): los integrantes validan su intención mediante gestos ópticos frente a la lente (<strong>Palma Abierta</strong> para registrar ingreso y <strong>Pulgar Arriba</strong> para egreso), ideal para un laboratorio donde se manipulan circuitos y herramientas.
+              </p>
+            </div>
+          </div>
+
+          <!-- CAPÍTULO 2: QUÉ PROBLEMAS RESUELVE -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">CAP_02</span>
+                <span class="panel-title">Problemas Reales que Resuelve el Sistema</span>
+              </div>
+              <span class="badge badge-blue">[ EDGE COMPUTING ]</span>
+            </div>
+            <div class="panel-body">
+              <p class="editorial-lead">
+                Automatizar el control de asistencia y permanencia en un entorno de investigación académica presenta desafíos que los productos comerciales de mercado no logran resolver de manera armónica.
+              </p>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+                <div style="padding: 8px 10px; background: var(--surface-alt); border: 1px solid var(--border);">
+                  <strong style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent); text-transform: uppercase;">
+                    1. Eliminación de GPU dedicada y alto costo de hardware
+                  </strong>
+                  <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
+                    La mayoría de los pipelines de visión profunda requieren placas gráficas NVIDIA con CUDA. LIS-FaceNet corre en <strong>CPU estándar a más de 30 FPS</strong> eliminando la pasada redundante de MTCNN y empleando una caché de <em>"Cara Estable"</em> que triplica los cuadros procesados.
+                  </p>
+                </div>
+
+                <div style="padding: 8px 10px; background: var(--surface-alt); border: 1px solid var(--border);">
+                  <strong style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent); text-transform: uppercase;">
+                    2. Resiliencia ante caídas de red y cortes eléctricos (Offline-First)
+                  </strong>
+                  <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
+                    Mediante <strong>Event Sourcing</strong> y persistencia inmediata en <code>datos/portero_eventos.jsonl</code> con <code>os.fsync</code>, el nodo Portero de puerta continúa operando y registrando fichajes aunque el servidor central o la red Wi-Fi se encuentren caídos.
+                  </p>
+                </div>
+
+                <div style="padding: 8px 10px; background: var(--surface-alt); border: 1px solid var(--border);">
+                  <strong style="font-family: var(--font-mono); font-size: 0.72rem; color: var(--accent); text-transform: uppercase;">
+                    3. Descarte de falsos positivos mediante Ratio Test
+                  </strong>
+                  <p style="font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px;">
+                    Se implementó el test de Lowe para verificar que la distancia al candidato más cercano sea significativamente menor que al segundo candidato (margen de separación), evitando falsas identificaciones entre personas con rasgos fisonómicos similares.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid-dashboard" style="grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 24px;">
+          <!-- CAPÍTULO 3: DE DÓNDE SURGIÓ -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">CAP_03</span>
+                <span class="panel-title">Origen Académico y Contexto del Proyecto</span>
+              </div>
+              <span class="badge badge-amber">[ UTN FRC · BECA GAALA ]</span>
+            </div>
+            <div class="panel-body">
+              <p class="editorial-lead">
+                LIS-FaceNet nació de una necesidad concreta dentro del <strong>Laboratorio de Investigación de Software (LIS)</strong>, perteneciente al Departamento de Ingeniería en Sistemas de Información de la <strong>Universidad Tecnológica Nacional — Facultad Regional Córdoba (UTN FRC)</strong>.
+              </p>
+              <p style="font-size: 0.88rem; color: var(--text-secondary); line-height: 1.55; margin-top: 4px;">
+                Desarrollado en el marco de la <strong>Beca GAALA</strong> (<em>Gestión Automatizada de Asistencia en Laboratorios Académicos</em>), el proyecto evolucionó desde sus primeras pruebas de concepto monolíticas en Python con OpenCV tradicional hacia una arquitectura desacoplada de microservicios de borde.
+              </p>
+              <div style="padding: 10px 12px; background: var(--surface-alt); border: 1px solid var(--border); margin: 8px 0;">
+                <div style="font-family: var(--font-mono); font-size: 0.7rem; font-weight: 700; color: var(--accent); text-transform: uppercase;">
+                  [ OBJETIVOS ACADÉMICOS Y OPERATIVOS ]
+                </div>
+                <ul style="font-size: 0.82rem; color: var(--text-secondary); margin-left: 18px; margin-top: 6px; line-height: 1.45;">
+                  <li>Reemplazar planillas de firmas manuales por telemetría transparente de asistencia real.</li>
+                  <li>Trazabilidad inmutable sobre el instrumental y kits de desarrollo retirados del armario técnico.</li>
+                  <li>Difusión de novedades y recordatorios de laboratorio en una pizarra digital centralizada.</li>
+                  <li>Demostrar la viabilidad de modelos de Deep Learning de última generación en hardware de bajo costo.</li>
+                </ul>
+              </div>
+              <p style="font-size: 0.86rem; color: var(--text-secondary); line-height: 1.55;">
+                El sistema ha sido probado y validado con suites de pruebas exhaustivas (38 tests unitarios automáticos cubriendo matching vectorizado, sincronización pull y truncado serie).
+              </p>
+            </div>
+          </div>
+
+          <!-- CAPÍTULO 4: CÓMO ESTÁ CONECTADO TODO EN DETALLE -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title-group">
+                <span class="panel-code">CAP_04</span>
+                <span class="panel-title">Cómo Está Conectado Todo en Detalle</span>
+              </div>
+              <span class="badge badge-neutral">[ TOPOLOGÍA INTEGRAL ]</span>
+            </div>
+            <div class="panel-body">
+              <p class="editorial-lead">
+                La arquitectura del sistema vincula sensores ópticos, modelos neuronales, bases de datos relacionales, periféricos de hardware por puerto serie y una interfaz web reactiva.
+              </p>
+              
+              <!-- Flujo esquemático CAD -->
+              <div style="font-family: var(--font-mono); font-size: 0.69rem; background: var(--surface-alt); border: 1px solid var(--border); padding: 10px; line-height: 1.45; overflow-x: auto; color: var(--text);">
+                <div style="color: var(--accent); font-weight: 700;">[ DIAGRAMA DE FLUJO DE SEÑAL Y DATOS ]</div>
+                <div>1. ÓPTICA: Webcam USB / DroidCam IP / WebRTC ──► 30 fps BGR</div>
+                <div>2. VISIÓN: MediaPipe BlazeFace (Bbox + 6 Keypoints) + Gestos</div>
+                <div>3. RECORTE: Margen 20% ──► Hot-Swap Scale (112/128/160/224 px)</div>
+                <div>4. VECTOR: InceptionResnetV1 (Torch) ──► Tensor unitario 512-D</div>
+                <div>5. COMPARACIÓN: NumPy Vectorized L2 &lt; 0.72 + Ratio Test de Lowe</div>
+                <div>6. PERSISTENCIA: SQLite WAL (lis_maestro.db) + Espejos CSV</div>
+                <div>7. PORTERO HTTP: 0.0.0.0:8080 (Stdlib pura para Intel Galileo 32b)</div>
+                <div>8. SERIE UART: 115200 bps ──► Arduino UNO ──► Grove LCD 16×2 RGB</div>
+                <div>9. CONSOLA WEB: SPA Reactiva · Polling 1000ms · Streaming MJPEG</div>
+              </div>
+
+              <div style="margin-top: 8px; font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5;">
+                <strong>Restricción estricta en el nodo Portero:</strong> Desarrollado exclusivamente con la biblioteca estándar de Python (<code>http.server</code>, <code>json</code>, <code>urllib</code>, <code>os</code>, <code>socket</code>, <code>pathlib</code>, <code>uuid</code>) para permitir su despliegue en microcomputadoras de borde con recursos mínimos (como la placa de 32 bits <em>Intel Galileo</em>), garantizando que el punto de acceso nunca dependa de dependencias pesadas de terceros.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PIE DE PÁGINA CON DITHERING ESTILO MAKING SOFTWARE -->
+      <footer class="ms-footer">
+        <div class="perforated-rule" style="margin-bottom: 12px;"></div>
+        <div>| LIS · LABORATORIO DE INVESTIGACIÓN DE SOFTWARE |</div>
+        <div style="margin-top: 3px;">A REFERENCE CONSOLE FOR BIOMETRIC EDGE ATTENDANCE &amp; TELEMETRY · UTN FRC</div>
+        <div style="margin-top: 4px;">[ © 1998 — 2026 · BLUEPRINT DESIGN SYSTEM ]</div>
+        <div class="ms-dither-strip"></div>
+      </footer>
     </main>
   </div>
 
@@ -1521,6 +2119,172 @@
     let intervaloSubidaWebcam = null;
     let subiendoCuadro = false;
 
+    /* ==========================================================================
+       CONTROLADOR DE DESGLOSE ISOMÉTRICO (MAKING SOFTWARE EXPLODED VIEW)
+       ========================================================================== */
+    const ESCENAS_ISO = {
+      pipeline: {
+        marginLeft: 'FIG_004 · REV 2026',
+        marginRight: '[ PIPELINE BIOMÉTRICO 512-D ]',
+        copy: 'Have you ever wondered how LIS-FaceNet verifies identity in milliseconds without storing a single photograph on disk? Each video frame passes through four isolated mathematical layers along our edge pipeline.',
+        prefix: 'pipe-layer-',
+        offsets: [-32, -8, 16, 42],
+        layers: [
+          { id: 0, code: 'L01', name: 'ÓPTICA RGB / STREAM' },
+          { id: 1, code: 'L02', name: 'BLAZEFACE + POSE' },
+          { id: 2, code: 'L03', name: 'TENSOR HOT-SWAP' },
+          { id: 3, code: 'L04', name: 'FACENET 512D + WAL' }
+        ]
+      },
+      hardware: {
+        marginLeft: 'FIG_004B · HARDWARE',
+        marginRight: '[ FICHADOR SERIE + PORTERO ]',
+        copy: 'Cuando un integrante toca el sensor o confirma un gesto frente a la cámara, el servicio Portero persiste el evento con fsync en disco y despacha tramas a 115200 baudios hacia el display LCD 16×2.',
+        prefix: 'hw-layer-',
+        offsets: [-30, -8, 16, 40],
+        layers: [
+          { id: 0, code: 'H01', name: 'CARCASA & TOUCH' },
+          { id: 1, code: 'H02', name: 'GROVE LCD 16×2 RGB' },
+          { id: 2, code: 'H03', name: 'ARDUINO 115200 BPS' },
+          { id: 3, code: 'H04', name: 'PORTERO HTTP JSONL' }
+        ]
+      }
+    };
+
+    let escenaIsoActual = 'pipeline';
+    let factorDesgloseIso = 1.0;
+    let capaIsoFijada = null;
+
+    function renderizarBotonesCapasIso() {
+      const cont = document.getElementById('iso-layer-buttons');
+      if (!cont) return;
+      const cfg = ESCENAS_ISO[escenaIsoActual];
+      cont.innerHTML = cfg.layers.map(l => {
+        const activo = (capaIsoFijada === l.id);
+        return `
+          <button
+            class="layer-pill-btn ${activo ? 'active' : ''}"
+            onmouseenter="enfocarCapaIso(${l.id})"
+            onmouseleave="enfocarCapaIso(capaIsoFijada)"
+            onclick="fijarCapaIso(${l.id})"
+          >
+            <span>${l.code} · ${l.name}</span>
+            <span>►</span>
+          </button>
+        `;
+      }).join('');
+    }
+
+    function aplicarTransformacionesIso() {
+      const cfg = ESCENAS_ISO[escenaIsoActual];
+      cfg.offsets.forEach((baseOffset, idx) => {
+        const el = document.getElementById(cfg.prefix + idx);
+        if (!el) return;
+        const dy = baseOffset * factorDesgloseIso;
+        const elevacion = (capaIsoFijada === idx) ? -5 : 0;
+        el.style.transform = `translateY(${(dy + elevacion).toFixed(1)}px)`;
+      });
+
+      const yTop = Math.round(98 - factorDesgloseIso * 34);
+      const yBot = Math.round(196 + factorDesgloseIso * 64);
+      ['cad-axis-l', 'cad-axis-r', 'cad-axis-c'].forEach(id => {
+        const ln = document.getElementById(id);
+        if (ln) {
+          ln.setAttribute('y1', yTop);
+          ln.setAttribute('y2', yBot);
+          ln.style.opacity = (0.12 + factorDesgloseIso * 0.42).toFixed(2);
+        }
+      });
+
+      document.querySelectorAll('.iso-callout').forEach(c => {
+        c.style.opacity = factorDesgloseIso < 0.22 ? '0.18' : '1';
+        c.style.transition = 'opacity 0.25s ease';
+      });
+
+      const lblZ = document.getElementById('iso-z-coord');
+      if (lblZ) {
+        lblZ.textContent = `[ ΔZ = ${Math.round(factorDesgloseIso * 42)}px · ESCALA 1:1 ]`;
+      }
+    }
+
+    function actualizarDesgloseIso(valor) {
+      factorDesgloseIso = Number(valor) / 100;
+      const pct = document.getElementById('iso-explode-pct');
+      if (pct) pct.textContent = `${Math.round(valor)}%`;
+      const btn = document.getElementById('btn-iso-toggle');
+      if (btn) btn.textContent = factorDesgloseIso > 0.5 ? '[ ENSAMBLAR ]' : '[ DESGLOSAR ]';
+      aplicarTransformacionesIso();
+    }
+
+    function alternarDesgloseIso() {
+      const destino = factorDesgloseIso > 0.5 ? 0 : 100;
+      const slider = document.getElementById('iso-explode-range');
+      if (slider) slider.value = destino;
+      actualizarDesgloseIso(destino);
+    }
+
+    function fijarCapaIso(idx) {
+      capaIsoFijada = (capaIsoFijada === idx) ? null : idx;
+      enfocarCapaIso(capaIsoFijada);
+      renderizarBotonesCapasIso();
+    }
+
+    function enfocarCapaIso(idx) {
+      const cfg = ESCENAS_ISO[escenaIsoActual];
+      const lbl = document.getElementById('iso-active-layer-label');
+      if (idx === null || idx === undefined) {
+        if (lbl) lbl.textContent = 'VISTA COMPLETA';
+        cfg.layers.forEach(l => {
+          const el = document.getElementById(cfg.prefix + l.id);
+          if (el) el.classList.remove('iso-dimmed', 'iso-focused');
+        });
+      } else {
+        const capa = cfg.layers.find(l => l.id === idx);
+        if (lbl && capa) lbl.textContent = `${capa.code} · ${capa.name}`;
+        cfg.layers.forEach(l => {
+          const el = document.getElementById(cfg.prefix + l.id);
+          if (!el) return;
+          if (l.id === idx) {
+            el.classList.remove('iso-dimmed');
+            el.classList.add('iso-focused');
+          } else {
+            el.classList.add('iso-dimmed');
+            el.classList.remove('iso-focused');
+          }
+        });
+      }
+      aplicarTransformacionesIso();
+    }
+
+    function cambiarEscenaIso(clave) {
+      escenaIsoActual = clave;
+      capaIsoFijada = null;
+      document.getElementById('iso-group-pipeline').style.display = (clave === 'pipeline') ? 'block' : 'none';
+      document.getElementById('iso-group-hardware').style.display = (clave === 'hardware') ? 'block' : 'none';
+
+      const cfg = ESCENAS_ISO[clave];
+      document.getElementById('iso-margin-left').textContent = cfg.marginLeft;
+      document.getElementById('iso-margin-right').textContent = cfg.marginRight;
+      document.getElementById('iso-editorial-text').textContent = cfg.copy;
+
+      const bPipe = document.getElementById('btn-iso-scene-pipe');
+      const bHw = document.getElementById('btn-iso-scene-hw');
+      if (clave === 'pipeline') {
+        bPipe.className = 'btn btn-sm';
+        bHw.className = 'btn btn-outline btn-sm';
+      } else {
+        bHw.className = 'btn btn-sm';
+        bPipe.className = 'btn btn-outline btn-sm';
+      }
+
+      renderizarBotonesCapasIso();
+      enfocarCapaIso(null);
+      aplicarTransformacionesIso();
+    }
+
+    /* ==========================================================================
+       LÓGICA OPERATIVA DEL SISTEMA LIS-FACENET
+       ========================================================================== */
     function obtenerIniciales(nombre) {
       const partes = String(nombre || 'LIS').trim().split(/[\s_-]+/).filter(Boolean);
       if (partes.length >= 2) {
@@ -1648,8 +2412,13 @@
     function cambiarVista(nombre, btn) {
       document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById('vista-' + nombre).classList.add('active');
+      const sec = document.getElementById('vista-' + nombre);
+      if (sec) sec.classList.add('active');
       if (btn) btn.classList.add('active');
+      if (nombre === 'acerca') {
+        renderizarBotonesCapasIso();
+        aplicarTransformacionesIso();
+      }
     }
 
     function alternarTema() {
@@ -1863,9 +2632,11 @@
         const st = await r.json();
         estadoGlobal = st;
 
-        document.getElementById('lbl-eventos').textContent = st.total_eventos_validos || 0;
-        document.getElementById('kpi-eventos').textContent = st.total_eventos_validos || 0;
-        document.getElementById('kpi-fps').textContent = (st.camara_runtime?.fps || 0).toFixed(1);
+        const totalEv = st.total_eventos_validos || 0;
+        const fpsVal = (st.camara_runtime?.fps || 0).toFixed(1);
+        document.getElementById('lbl-eventos').textContent = totalEv;
+        document.getElementById('kpi-eventos').textContent = totalEv;
+        document.getElementById('kpi-fps').textContent = fpsVal;
         document.getElementById('kpi-presentes').textContent = Object.keys(st.presentes || {}).length;
         document.getElementById('kpi-prestamos').textContent = Object.keys(st.prestamos || {}).length;
         document.getElementById('lbl-portero').textContent = 'Nodo Portero: En línea';
@@ -1894,18 +2665,31 @@
           txtCinta.textContent = 'Sin avisos activos';
         }
 
-        document.getElementById('lbl-fps').textContent = (st.camara_runtime?.fps || 0).toFixed(1);
+        document.getElementById('lbl-fps').textContent = fpsVal;
 
         const camSt = st.camara_runtime || {};
         const fuenteActiva = (st.orden_camara?.fuente || camSt.fuente || '0').toLowerCase();
         const badge = document.getElementById('badge-fuente-activa');
+        const textoBadge = (fuenteActiva === 'navegador')
+          ? 'NAVEGADOR'
+          : (fuenteActiva.startsWith('http') ? 'STREAM IP' : `LOCAL #${fuenteActiva}`);
         if (badge) {
           const esNav = (fuenteActiva === 'navegador');
           const esIp = fuenteActiva.startsWith('http');
-          const textoBadge = esNav ? 'NAVEGADOR' : (esIp ? 'STREAM IP' : `LOCAL #${fuenteActiva}`);
           badge.textContent = textoBadge;
           badge.className = 'badge ' + (esNav ? 'badge-green' : (esIp ? 'badge-amber' : 'badge-neutral'));
         }
+
+        // Actualizar cotas en vivo dentro del plano isométrico CAD
+        const resActiva = st.config_reconocimiento?.resolucion || st.camara_runtime?.resolucion || 160;
+        const cadCam = document.getElementById('cad-lbl-cam');
+        if (cadCam) cadCam.textContent = `FUENTE: ${textoBadge}`;
+        const cadFps = document.getElementById('cad-lbl-fps');
+        if (cadFps) cadFps.textContent = `STREAM · ${fpsVal} FPS`;
+        const cadRes = document.getElementById('cad-lbl-res');
+        if (cadRes) cadRes.textContent = `TENSOR ${resActiva}×${resActiva} PX`;
+        const cadEv = document.getElementById('cad-lbl-eventos');
+        if (cadEv) cadEv.textContent = `512-D (${totalEv} EV.)`;
 
         // Banner de enrolamiento
         const enr = st.enrolamiento || {};
@@ -1929,7 +2713,7 @@
             const badgePaso = document.getElementById('hud-guiado-paso-badge');
             if (badgePaso) {
               badgePaso.textContent = `POSE ${idxPaso} / ${totPasos}`;
-              badgePaso.className = 'badge ' + (enr.coincide ? 'badge-green' : 'badge-amber');
+              badgePaso.className = 'badge ' + (enr.coincide ? 'badge-green' : 'badge-blue');
             }
 
             const instruccionEl = document.getElementById('hud-guiado-instruccion');
@@ -1940,20 +2724,18 @@
             const feedbackEl = document.getElementById('hud-guiado-feedback');
             if (feedbackEl) {
               feedbackEl.textContent = enr.mensaje || 'Mantenga el rostro centrado hacia la cámara';
-              feedbackEl.style.color = enr.coincide ? '#10b981' : '#f59e0b';
+              feedbackEl.style.color = enr.coincide ? '#34D399' : '#93C5FD';
             }
 
-            // Elipse de progreso SVG (perímetro aproximado = 600)
             const elipseProg = document.getElementById('hud-oval-progreso');
             if (elipseProg) {
               const ratio = Math.max(0.0, Math.min(1.0, enr.progreso_sostener || 0));
               const perimetro = 600;
               elipseProg.style.strokeDasharray = `${perimetro}`;
               elipseProg.style.strokeDashoffset = `${perimetro * (1.0 - ratio)}`;
-              elipseProg.style.stroke = ratio >= 0.98 ? '#10b981' : (enr.coincide ? '#38bdf8' : '#f59e0b');
+              elipseProg.style.stroke = ratio >= 0.98 ? '#10B981' : (enr.coincide ? '#4B7BFF' : '#F59E0B');
             }
 
-            // Píldoras de poses requeridas
             const contPills = document.getElementById('hud-guiado-pills');
             if (contPills) {
               const nombresPoses = ['FRENTE', 'DERECHA', 'IZQUIERDA', 'ARRIBA', 'ABAJO'].slice(0, totPasos);
@@ -2006,7 +2788,7 @@
         document.getElementById('cnt-presentes').textContent = presentesArr.length;
         const contPres = document.getElementById('lista-presentes');
         if (presentesArr.length === 0) {
-          contPres.innerHTML = `<div class="empty-state">Sin integrantes registrados en sala en este momento.</div>`;
+          contPres.innerHTML = `<div class="empty-state">[ SIN INTEGRANTES REGISTRADOS EN SALA ]</div>`;
         } else {
           contPres.innerHTML = presentesArr.map(p => `
             <div class="person-row">
@@ -2031,7 +2813,7 @@
         const prestamosArr = Object.values(prestamosObj);
         const contPrest = document.getElementById('resumen-prestamos');
         if (prestamosArr.length === 0) {
-          contPrest.innerHTML = `<div class="empty-state">Todo el instrumental se encuentra disponible en el armario.</div>`;
+          contPrest.innerHTML = `<div class="empty-state">[ INSTRUMENTAL COMPLETO EN ARMARIO ]</div>`;
         } else {
           contPrest.innerHTML = prestamosArr.map(pr => `
             <div class="loan-row">
@@ -2040,7 +2822,7 @@
                 <span style="color:var(--muted); margin:0 6px;">·</span>
                 <span class="badge badge-amber">${pr.persona_id}</span>
               </div>
-              <button class="btn btn-outline btn-sm" onclick="registrarMovimientoInventario('devolucion', '${pr.objeto_id}')">Registrar devolución</button>
+              <button class="btn btn-outline btn-sm" onclick="registrarMovimientoInventario('devolucion', '${pr.objeto_id}')">Devolver</button>
             </div>
           `).join('');
         }
@@ -2049,7 +2831,7 @@
         const evs = st.ultimos_eventos || [];
         const contEvs = document.getElementById('lista-eventos');
         if (evs.length === 0) {
-          contEvs.innerHTML = `<div class="empty-state" style="border:0;">Sin eventos registrados en la bitácora.</div>`;
+          contEvs.innerHTML = `<div class="empty-state" style="border:0;">[ SIN EVENTOS EN BITÁCORA ]</div>`;
         } else {
           contEvs.innerHTML = evs.map(e => {
             const badgeClass = e.tipo === 'entrada'
@@ -2081,7 +2863,7 @@
               <td><strong>${pf.nombre}</strong></td>
               <td>${pf.rol} <span style="color:var(--muted);">(${pf.proyecto})</span></td>
               <td>
-                <span class="badge ${pf.cantidad_embeddings >= 3 ? 'badge-green' : 'badge-amber'}">
+                <span class="badge ${pf.cantidad_embeddings >= 3 ? 'badge-blue' : 'badge-amber'}">
                   ${pf.cantidad_embeddings} vectores
                 </span>
               </td>
@@ -2137,10 +2919,10 @@
         const avisos = st.avisos || [];
         const contAvisos = document.getElementById('lista-avisos');
         if (avisos.length === 0) {
-          contAvisos.innerHTML = `<div class="empty-state">No hay avisos fijados en la pizarra del laboratorio.</div>`;
+          contAvisos.innerHTML = `<div class="empty-state">[ SIN AVISOS ACTIVOS EN PIZARRA ]</div>`;
         } else {
           contAvisos.innerHTML = avisos.map(av => `
-            <div class="person-row" style="border-left:3px solid var(--amber);">
+            <div class="person-row" style="border-left:3px solid var(--accent);">
               <div class="person-info">
                 <h3>${av.texto}</h3>
                 <div class="person-meta">
@@ -2154,7 +2936,6 @@
         }
 
         // Sincronización Hot-Swap Multi-Resolución
-        const resActiva = st.config_reconocimiento?.resolucion || st.camara_runtime?.resolucion || 160;
         const badgeRes = document.getElementById('badge-res-activa');
         if (badgeRes) badgeRes.textContent = `${resActiva}×${resActiva} PX`;
         const selHs1 = document.getElementById('sel-hotswap-res');
@@ -2170,6 +2951,9 @@
       }
     }
 
+    // Inicializar módulo de desglose isométrico y bucle de telemetría
+    renderizarBotonesCapasIso();
+    aplicarTransformacionesIso();
     setInterval(actualizarEstado, 1000);
     actualizarEstado();
   </script>
