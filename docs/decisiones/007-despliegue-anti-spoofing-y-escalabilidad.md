@@ -12,7 +12,25 @@
 El eje principal de valor del sistema es que el ciclo **Cámara $\rightarrow$ Identificación $\rightarrow$ Registro de Entrada/Salida** sea rápido, preciso e infalible en condiciones reales de puerta:
 
 - **Modo Laboratorio (LIS y afines):** Flujo de 1 persona por vez con confirmación explícita (**Touch `D2` + Rostro + Gesto Palma/Pulgar**) para evitar falsos registros de transeúntes y asentar con precisión entrada vs. salida.
-- **Modo Aula (proyección futura a cursado masivo):** Flujo continuo de alta velocidad (40–80 alumnos ingresando en pocos minutos) sin exigir sostener gesto por persona, priorizando velocidad de registro de ingreso.
+- **Modo Aula (proyección futura a cursado masivo):** Flujo continuo de alta velocidad (40–200 alumnos ingresando en pocos minutos) sin exigir sostener gesto por persona, priorizando velocidad de registro de ingreso.
+
+### 1.1 Diseño de "Modo Aula": Asistencia de 100–200 Alumnos sin Cuenta Previa y Asociación con Padrón (Nombre, Apellido, Legajo)
+
+En un aula masiva con fila de 100–200 estudiantes que no tienen cuenta ni perfil biométrico previo, pedir registro manual en la puerta colapsaría el ingreso. Para resolver este arranque en frío (*cold-start*) sin detener la fila se combinan tres etapas:
+
+1. **Etapa 0 — Precarga del Padrón Oficial (CSV de Autogestión / SIU-Guaraní):**
+   - Antes de iniciar el cuatrimestre, el docente importa el CSV oficial de la comisión (`legajo, apellido, nombre`).
+   - El sistema genera las fichas administrativas válidas y sin errores de tipeo, con `cantidad_embeddings = 0` (estado: *Pendiente de vinculación biométrica*).
+2. **Mecanismo A — Auto-Onboarding Web / QR desde el Celular del Alumno (Fricción Cero en Puerta):**
+   - El docente proyecta un enlace/QR en el pizarrón (o lo publica en el Aula Virtual). Cada alumno accede desde su celular, ingresa su **Legajo**, confirma su nombre y apellido precargados y realiza la captura guiada de 3–5 poses en ~15 segundos.
+   - El servidor extrae los embeddings `vggface2` en RAM y descarta las fotos crudas.
+   - Al cruzar por la puerta en **Modo Aula (Paso Continuo)** no hace falta tocar `D2` ni hacer gesto: alcanza con mirar hacia la cámara durante `2–3 frames` estables ($\approx 150\text{ ms}$) mientras la tablet muestra la lista rodante de reconocidos (`✅ 89412 - Pérez, Juan`).
+3. **Mecanismo B — Asistencia Anónima por Clustering Temporal + Reconciliación Diferida (Alumnos que llegan sin enrolarse):**
+   - Si un alumno pasa por la puerta y su rostro no coincide con la galería (`distancia > 0.68`), **nunca se detiene la fila**.
+   - El nodo agrupa la cara estable en una **Identidad Temporal de Clase** (`aula_temp_001`, `aula_temp_002`, ...) guardando su vector `float32` de 512 dimensiones, el timestamp exacto de ingreso y un código corto de referencia en pantalla (ej. `Ticket #042`).
+   - **Asociación posterior al alumno real (Nombre, Apellido, Legajo):**
+     - *Reconciliación biométrica automática:* cuando ese alumno finalmente se enrola (desde su celular en el aula, al salir o en la clase siguiente) vinculando su rostro a su **Legajo**, el sistema ejecuta un cruce vectorial (`consultar_embeddings` con umbral estricto `< 0.58`) contra las identidades huérfanas `aula_temp_*` de la comisión y le adjudica retroactivamente sus asistencias previas.
+     - *Vinculación rápida de 1 toque en el Kiosco:* mediante el teclado numérico de hasta 12 dígitos (`#modal-pin-kiosco`), el alumno ingresa su **Legajo** mirando a la cámara ~2 segundos; el sistema guarda sus embeddings en ese acto y lo vincula a su ficha oficial del padrón para el resto del año.
 
 ---
 
@@ -89,4 +107,40 @@ Antes de desplegar en aulas o incorporar `sqlite-vec`, se planifica un **banco d
    - **Latencia de consulta (`ms`):** Tiempo de matching por frame comparando NumPy en RAM vs. `sqlite-vec`.
    - **Tasa de Falsos Positivos (FAR) / Falsos Rechazos (FRR)** y comportamiento del **Margen de Lowe** al crecer la galería.
    - **Consumo de RAM y estrés de eventos:** Impacto en `/state`, SQLite WAL y sincronización CSV/JSONL.
+
+### 5.1 Resultados Experimentales del Benchmark a Escala (`nucleo/benchmark_escala.py`)
+
+Se implementó `IndiceEmbeddingsRAM` en [`nucleo/comparacion.py`](../../nucleo/comparacion.py) y el banco aislado [`nucleo/benchmark_escala.py`](../../nucleo/benchmark_escala.py) (ejecutado sobre bases SQLite temporales y leyendo en modo solo-lectura `mode=ro` el perfil real `Jonas` de 5 poses en `vggface2`). Con los parámetros productivos (`umbral = 0.68`, `metodo = "minimo"`, `margen_separacion = 0.04`):
+
+| Personas | Vectores | Carga SQLite (ms) | Índice RAM (ms) | Bucle Python (ms) | IndiceEmbeddingsRAM (ms) | Aceleración | TAR Sint. | FAR Imp. | Real LOPO (`Jonas`) | Dist. Real | 2do Cand. | Margen Lowe |
+|---:|---:|---:|---:|---:|---:|---:|---:|---:|:---:|---:|---:|---:|
+| 50 | 250 | 4.56 | 4.82 | 3.826 | 1.519 | 2.5x | 100.0% | 0.0% | 5/5 | 0.2796 | 1.3446 | 1.0649 |
+| 200 | 1000 | 10.54 | 20.39 | 18.026 | 2.694 | 6.7x | 100.0% | 0.0% | 5/5 | 0.2796 | 1.3051 | 1.0254 |
+| 500 | 2500 | 27.24 | 64.62 | 48.568 | 3.810 | 12.8x | 100.0% | 0.0% | 5/5 | 0.2796 | 1.3101 | 1.0305 |
+| 1000 | 5000 | 37.20 | 97.41 | 85.981 | 5.858 | 14.7x | 100.0% | 0.0% | 5/5 | 0.2796 | 1.3108 | 1.0311 |
+| 2500 | 12500 | 111.00 | 306.84 | 209.928 | 11.702 | 17.9x | 100.0% | 0.0% | 5/5 | 0.2796 | 1.2905 | 1.0108 |
+| 5000 | 25000 | 204.65 | 576.61 | 424.962 | 21.967 | 19.4x | 100.0% | 0.0% | 5/5 | 0.2796 | 1.2954 | 1.0157 |
+
+**Conclusiones empíricas:**
+- Hasta **1.000 personas (5.000 vectores)** —equivalente a varios laboratorios o varias comisiones de aula juntas—, `IndiceEmbeddingsRAM` consulta en **5.86 ms** (`14.7x` más rápido que el bucle tradicional de `85.98 ms`) sin requerir aún `sqlite-vec`.
+- Recién a partir de **2.500–5.000 identidades (12.500–25.000 vectores)** la consulta en RAM sube a `11.7–22.0 ms`, momento en el que `sqlite-vec` (`vec0`) cobra sentido si se centraliza toda la facultad en un único índice sin filtrar por comisión/sede.
+- Incluso mezclado entre **5.000 identidades aleatorias**, el perfil real `Jonas` mantuvo **5/5 aciertos Leave-One-Pose-Out** con un margen de Lowe medio de `1.0157` (muy por encima del mínimo `0.04`).
+- Para evaluar también variaciones reales de pose e iluminación humana en casa, queda disponible `/home/jonas/.venv-ml/bin/python -m nucleo.benchmark_escala --lfw`.
+
+---
+
+## 6. Capa de Aprendizaje Continuo ML y Roadmap de Implementación
+
+Para que el sistema se adapte progresivamente con el uso real (cambios de iluminación estacional, anteojos, barba o corte de pelo) sin re-entrenar ni almacenar fotos crudas:
+
+- **FaceNet congelado + adaptación en capa vectorial:**
+  1. **Anclas Inmutables (5 vectores base) + Vectores Adaptativos (EMA, hasta 3 slots):** los 5 embeddings del alta guiada permanecen intactos para evitar deriva o envenenamiento; los slots adaptativos se actualizan con media móvil exponencial ($\vec{v}_{\text{nuevo}} = 0.85\,\vec{v}_{\text{prev}} + 0.15\,\vec{e}_{\text{actual}}$) en fichajes faciales muy claros (`distancia < 0.42` + gesto) o ante **rescate supervisado por PIN frente a la cámara activa**.
+  2. **Clasificador ML incremental (`scikit-learn` `partial_fit`, ej. `SGDClassifier(loss="log_loss")`):** opera como segunda capa sobre los 512 floats usando positivos confirmados y *hard negatives* locales del padrón en `< 2 ms` de CPU.
+
+### Roadmap acordado por fases
+1. **Fase 1 — Motor Vectorial + ML Adaptativo (Casa):** integrar `sqlite-vec` (`vec0`) con fallback a `IndiceEmbeddingsRAM`, crear `nucleo/adaptacion.py` (Anclas + EMA por PIN/alta confianza + `partial_fit`) y exponer 1er/2do candidato + margen de Lowe + score ML en el HUD.
+2. **Fase 2 — Prueba Visual en Tiempo Real con Caras Reales (Casa):** ingesta de caras reales multi-pose de LFW en una base de prueba para simular una fila en vivo y probar la webcam propia mezclada entre cientos de rostros humanos reales.
+3. **Fase 3 — Seguridad Anti-Spoofing (Casa):** geometría 3D $Z$ y parpadeo/micro-movimiento con `FaceLandmarker` (y evaluación opcional de *MiniFASNet* en ONNX).
+4. **Fase 4 — Gestión, Modo Aula y Resiliencia (Casa):** conectar `05 Estadísticas` a SQLite (`/stats`), implementar Padrón CSV + identidades `aula_temp_*` con reconciliación diferida, endpoint incremental `GET /events?since=cursor` y scripts `systemd`/USB en `deploy/`.
+5. **Fase 5 — Puesta en Marcha Física (Lab LIS):** instalar servicio desatendido, desactivar suspensión USB y validar soporte físico completo en puerta.
 
