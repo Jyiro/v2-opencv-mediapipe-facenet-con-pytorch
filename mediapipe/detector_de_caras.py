@@ -22,8 +22,9 @@ from hardware.camara import (
     obtener_frame_subido_jpeg,
 )
 from hardware.serie import ClienteFichadorSerie
+from nucleo.adaptacion import BufferPistaTopK, DetectorAlertaEntorno
 from nucleo.base_datos import RepositorioLIS
-from nucleo.comparacion import consultar_embeddings
+from nucleo.comparacion import IndiceEmbeddingsRAM, consultar_embeddings
 from nucleo.eventos import crear_evento, derivar_estado
 from nucleo.iluminacion import evaluar_calidad
 from nucleo.pose import EstimadorPose, GuiaDePoses, PoseCabeza, pasos_para
@@ -66,7 +67,14 @@ class PistaRostro:
         self.reconocido = False
         self.nombre = "Estabilizando..."
         self.distancia = 9.99
+        self.distancia_segundo: float | None = None
+        self.margen: float | None = None
+        self.candidato_mas_cercano: str | None = None
+        self.segundo_candidato: str | None = None
+        self.ultima_nitidez: float = 0.0
+        self.ultimo_brillo: float = 0.0
         self.ultimo_embedding: np.ndarray | None = None
+        self.buffer_top3 = BufferPistaTopK(capacidad=3)
         self.gesto_actual: str | None = None
         self.frames_gesto = 0
 
@@ -107,8 +115,10 @@ class PipelineReconocimientoLIS:
         self.standby = True
         self.tiempo_expiracion_standby: float = 0.0
 
-        # Diccionario Hot-Swap: {112: {...}, 128: {...}, 160: {...}, 224: {...}}
+        # Diccionario Hot-Swap + Índices vectorizados con recarga atómica
         self.galerias_por_resolucion: dict[int, dict[str, list[np.ndarray]]] = {}
+        self.indices_por_resolucion: dict[int, IndiceEmbeddingsRAM] = {}
+        self.detector_alerta_entorno = DetectorAlertaEntorno()
         self._recargar_galerias()
         self.repositorio.guardar_estado_runtime(
             "config_reconocimiento",
@@ -140,17 +150,29 @@ class PipelineReconocimientoLIS:
         self.hud_guia: dict[str, Any] | None = None
 
     def _recargar_galerias(self) -> None:
-        """Carga en RAM los bancos de embeddings de las 4 resoluciones para permitir Hot-Swap instantáneo."""
+        """Carga en RAM los bancos e índices de las 4 resoluciones con swap atómico."""
+        nuevas_galerias: dict[int, dict[str, list[np.ndarray]]] = {}
+        nuevos_indices: dict[int, IndiceEmbeddingsRAM] = {}
         for r in RESOLUCIONES_SOPORTADAS:
             clave_mod = nombre_modelo_resolucion(r)
             # con_fallback=True permite que perfiles antiguos (solo en 160) sigan funcionando
-            self.galerias_por_resolucion[r] = self.repositorio.cargar_diccionario_embeddings(
-                modelo=clave_mod, con_fallback=True
-            )
+            gal = self.repositorio.cargar_diccionario_embeddings(modelo=clave_mod, con_fallback=True)
+            nuevas_galerias[r] = gal
+            nuevos_indices[r] = IndiceEmbeddingsRAM(gal)
+        self.galerias_por_resolucion = nuevas_galerias
+        self.indices_por_resolucion = nuevos_indices
 
     @property
     def base_embeddings_activa(self) -> dict[str, list[np.ndarray]]:
         return self.galerias_por_resolucion.get(self.resolucion_recorte, {})
+
+    @property
+    def indice_activo(self) -> IndiceEmbeddingsRAM:
+        idx = self.indices_por_resolucion.get(self.resolucion_recorte)
+        if idx is None:
+            idx = IndiceEmbeddingsRAM(self.base_embeddings_activa)
+            self.indices_por_resolucion[self.resolucion_recorte] = idx
+        return idx
 
     def _sincronizar_config_reconocimiento(self) -> None:
         """Verifica si desde la interfaz web se solicitó un Hot-Swap de resolución."""
@@ -288,21 +310,42 @@ class PipelineReconocimientoLIS:
                 recorte = frame_bgr[y1:y2, x1:x2]
 
                 if recorte is not None and recorte.size > 0:
+                    cal = evaluar_calidad(recorte)
                     emb = self.extractor.generar_embedding(recorte, resolucion=self.resolucion_recorte)
                     if emb is not None:
-                        pista.ultimo_embedding = emb
-                        pista.frames_desde_inferencia = 0
-                        res = consultar_embeddings(
+                        pista.buffer_top3.registrar(
                             emb,
-                            self.base_embeddings_activa,
-                            self.umbral,
-                            self.metodo_comp,
+                            nitidez=float(cal["nitidez"]),
+                            brillo=float(cal["brillo"]),
+                            calidad_ok=bool(cal["ok"]),
+                        )
+                        emb_consulta = pista.buffer_top3.embedding_fusionado()
+                        if emb_consulta is None:
+                            emb_consulta = emb
+                        pista.ultimo_embedding = emb_consulta
+                        pista.ultima_nitidez = float(cal["nitidez"])
+                        pista.ultimo_brillo = float(cal["brillo"])
+                        pista.frames_desde_inferencia = 0
+                        res = self.indice_activo.consultar(
+                            emb_consulta,
+                            umbral=self.umbral,
+                            metodo=self.metodo_comp,
                             margen_separacion=self.margen_separacion,
                         )
                         era_reconocido = pista.reconocido
                         pista.reconocido = res["reconocido"]
                         pista.nombre = res["nombre"]
                         pista.distancia = res["distancia"]
+                        pista.distancia_segundo = res.get("distancia_segundo")
+                        pista.margen = res.get("margen")
+                        pista.candidato_mas_cercano = res.get("candidato_mas_cercano")
+                        pista.segundo_candidato = res.get("segundo_candidato")
+                        if not pista.reconocido and pista.frames_estables == self.frames_estable_req:
+                            clave_f = pista.candidato_mas_cercano or "desconocido"
+                            if pista.candidato_mas_cercano and self.detector_alerta_entorno.registrar_fallo(clave_f):
+                                logging.warning(
+                                    "Alerta ambiental: múltiples usuarios distintos fallando en ventana reciente."
+                                )
                         if pista.reconocido and not era_reconocido and self.nombre_enrolando is None:
                             ult_ev = self.ultimo_disparo_por_persona.get(pista.nombre, 0.0)
                             if time.time() - ult_ev > 3.5:
@@ -678,6 +721,23 @@ class PipelineReconocimientoLIS:
                         },
                     )
                     self.repositorio.registrar_evento(evento)
+                    self.repositorio.registrar_telemetria_shadow(
+                        modo="LIS",
+                        persona_id=pista.nombre,
+                        metodo="cara+gesto",
+                        pistas_activas=len(self.pistas),
+                        dist_primero=pista.distancia,
+                        dist_segundo=pista.distancia_segundo,
+                        margen=pista.margen,
+                        calidad=pista.ultima_nitidez,
+                        brillo=pista.ultimo_brillo,
+                        decision_shadow="confirmado_gesto",
+                        meta={
+                            "resolucion": self.resolucion_recorte,
+                            "top_k": pista.buffer_top3.cantidad,
+                            "tipo_evento": tipo_ev,
+                        },
+                    )
                     self.fichador.notificar_evento_acceso(pista.nombre, tipo_ev, pista.distancia)
                     self.ultimo_disparo_por_persona[pista.nombre] = ahora_ts
                     color_b = (16, 185, 129) if tipo_ev == "entrada" else (235, 130, 50)
@@ -832,8 +892,9 @@ class PipelineReconocimientoLIS:
 
         seg_rest = max(0, int(self.tiempo_expiracion_standby - time.time()))
         fuente_corta = str(self.fuente_camara)[:12]
+        motor_idx = "VEC" if self.repositorio.sqlite_vec_activo else "RAM"
         texto_hdr = (
-            f"LIS-VISION CAD | FPS: {fps:.1f} | ACTIVO: {seg_rest}s | "
+            f"LIS-VISION {motor_idx} | FPS: {fps:.1f} | ACTIVO: {seg_rest}s | "
             f"CAM: {fuente_corta} | EN SALA: {len(presentes)} | d<{self.umbral:.2f}"
         )
         cv.putText(frame_bgr, texto_hdr, (14, 28), cv.FONT_HERSHEY_SIMPLEX, 0.48, (245, 245, 250), 1, cv.LINE_AA)
@@ -844,15 +905,30 @@ class PipelineReconocimientoLIS:
                 color = (40, 200, 250)
                 etiqueta_sup = f"Estabilizando ({pista.frames_estables}/{self.frames_estable_req})"
                 etiqueta_inf = "Calculando embedding..."
+                etiqueta_extra = ""
             elif pista.reconocido:
                 color = (16, 200, 120)
                 estado_str = "DENTRO" if pista.nombre in presentes else "FUERA"
                 etiqueta_sup = f"{pista.nombre} [{estado_str}]"
                 etiqueta_inf = f"d: {pista.distancia:.2f} / umbral: {self.umbral:.2f} ({self.resolucion_recorte}px)"
+                if pista.segundo_candidato and pista.distancia_segundo is not None:
+                    m_str = f"{pista.margen:.2f}" if pista.margen is not None else "-"
+                    etiqueta_extra = (
+                        f"2do: {pista.segundo_candidato[:14]} ({pista.distancia_segundo:.2f}) | M:{m_str} | Top3:{pista.buffer_top3.cantidad}/3"
+                    )
+                else:
+                    etiqueta_extra = f"Top3:{pista.buffer_top3.cantidad}/3 | 1 perfil en galeria"
             else:
                 color = (60, 65, 235)
                 etiqueta_sup = "Desconocido"
                 etiqueta_inf = f"d: {pista.distancia:.2f} (umbral: {self.umbral:.2f} | {self.resolucion_recorte}px)"
+                if pista.segundo_candidato and pista.distancia_segundo is not None:
+                    c1 = pista.candidato_mas_cercano or "?"
+                    etiqueta_extra = (
+                        f"1ro: {c1[:11]} ({pista.distancia:.2f}) | 2do: {pista.segundo_candidato[:11]} ({pista.distancia_segundo:.2f})"
+                    )
+                else:
+                    etiqueta_extra = f"Top3:{pista.buffer_top3.cantidad}/3"
 
             ancho_badge = max(w, 210)
             cv.rectangle(frame_bgr, (x, y), (x + w, y + h), color, 2)
@@ -867,16 +943,28 @@ class PipelineReconocimientoLIS:
                 2,
                 cv.LINE_AA,
             )
+            y_inf = min(fh - (24 if etiqueta_extra else 10), y + h + 18)
             cv.putText(
                 frame_bgr,
                 _ascii_seguro(etiqueta_inf),
-                (x, min(fh - 10, y + h + 20)),
+                (x, y_inf),
                 cv.FONT_HERSHEY_SIMPLEX,
                 0.48,
                 color,
                 2,
                 cv.LINE_AA,
             )
+            if etiqueta_extra:
+                cv.putText(
+                    frame_bgr,
+                    _ascii_seguro(etiqueta_extra),
+                    (x, min(fh - 6, y_inf + 16)),
+                    cv.FONT_HERSHEY_SIMPLEX,
+                    0.40,
+                    (220, 225, 235),
+                    1,
+                    cv.LINE_AA,
+                )
 
         if self.hud_guia:
             bx, by, bw, bh = self.hud_guia["bbox"]

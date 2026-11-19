@@ -73,6 +73,7 @@ def _resultado_desconocido(umbral: float) -> dict[str, Any]:
         "margen": None,
         "umbral": umbral,
         "candidato_mas_cercano": None,
+        "segundo_candidato": None,
     }
 
 
@@ -87,6 +88,7 @@ def _armar_resultado_consulta(
     ranking.sort(key=lambda item: item[0])
     menor_distancia, mejor_nombre = ranking[0]
     segunda_distancia = ranking[1][0] if len(ranking) > 1 else float("inf")
+    segundo_nombre = ranking[1][1] if len(ranking) > 1 else None
     diferencia_segundo = (segunda_distancia - menor_distancia) if segunda_distancia != float("inf") else float("inf")
 
     # Pasa si está debajo del umbral Y supera el margen de ambigüedad (o es un match clarísimo < 0.45)
@@ -101,6 +103,7 @@ def _armar_resultado_consulta(
         "margen": round(diferencia_segundo, 4) if segunda_distancia != float("inf") else None,
         "umbral": umbral,
         "candidato_mas_cercano": mejor_nombre,
+        "segundo_candidato": segundo_nombre,
     }
 
 

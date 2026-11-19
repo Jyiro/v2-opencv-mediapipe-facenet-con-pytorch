@@ -129,18 +129,18 @@ Se implementó `IndiceEmbeddingsRAM` en [`nucleo/comparacion.py`](../../nucleo/c
 
 ---
 
-## 6. Capa de Aprendizaje Continuo ML y Roadmap de Implementación
+## 6. Adaptación Continua en Uso y Roadmap de Implementación
 
-Para que el sistema se adapte progresivamente con el uso real (cambios de iluminación estacional, anteojos, barba o corte de pelo) sin re-entrenar ni almacenar fotos crudas:
+Tras evaluar las alternativas mediante un análisis multi-perspectiva (*LLM Council*), se descartaron `SGDClassifier (partial_fit)`, el promedio móvil `EMA` y las mutaciones silenciosas gatilladas por PIN. La arquitectura definitiva para este punto queda especificada en [ADR 008: Adaptación Continua en Uso y Límites de Machine Learning](./008-arquitectura-adaptacion-continua-y-limites-ml.md):
 
-- **FaceNet congelado + adaptación en capa vectorial:**
-  1. **Anclas Inmutables (5 vectores base) + Vectores Adaptativos (EMA, hasta 3 slots):** los 5 embeddings del alta guiada permanecen intactos para evitar deriva o envenenamiento; los slots adaptativos se actualizan con media móvil exponencial ($\vec{v}_{\text{nuevo}} = 0.85\,\vec{v}_{\text{prev}} + 0.15\,\vec{e}_{\text{actual}}$) en fichajes faciales muy claros (`distancia < 0.42` + gesto) o ante **rescate supervisado por PIN frente a la cámara activa**.
-  2. **Clasificador ML incremental (`scikit-learn` `partial_fit`, ej. `SGDClassifier(loss="log_loss")`):** opera como segunda capa sobre los 512 floats usando positivos confirmados y *hard negatives* locales del padrón en `< 2 ms` de CPU.
+- **Búsqueda vectorial pura + filtrado por proyecto:** `IndiceEmbeddingsRAM` (con swap atómico en RAM) + `sqlite-vec` (`vec0`), filtrando por comisión/proyecto en Modo Aula.
+- **5 Anclas Inmutables + máx. 3 Slots Adaptativos Discretos:** con TTL (expiración), reemplazo LRU, rollback en 1 comando, **4 compuertas con veto inter-clase** y exclusión de Modo Aula (solo lectura).
+- **Top-3 efímero por `PistaRostro` + `telemetria_shadow` pasiva:** fusión ponderada en inferencia sin costo extra de FaceNet y registro numérico pasivo por evento resuelto (sin fotos crudas).
 
 ### Roadmap acordado por fases
-1. **Fase 1 — Motor Vectorial + ML Adaptativo (Casa):** integrar `sqlite-vec` (`vec0`) con fallback a `IndiceEmbeddingsRAM`, crear `nucleo/adaptacion.py` (Anclas + EMA por PIN/alta confianza + `partial_fit`) y exponer 1er/2do candidato + margen de Lowe + score ML en el HUD.
-2. **Fase 2 — Prueba Visual en Tiempo Real con Caras Reales (Casa):** ingesta de caras reales multi-pose de LFW en una base de prueba para simular una fila en vivo y probar la webcam propia mezclada entre cientos de rostros humanos reales.
-3. **Fase 3 — Seguridad Anti-Spoofing (Casa):** geometría 3D $Z$ y parpadeo/micro-movimiento con `FaceLandmarker` (y evaluación opcional de *MiniFASNet* en ONNX).
-4. **Fase 4 — Gestión, Modo Aula y Resiliencia (Casa):** conectar `05 Estadísticas` a SQLite (`/stats`), implementar Padrón CSV + identidades `aula_temp_*` con reconciliación diferida, endpoint incremental `GET /events?since=cursor` y scripts `systemd`/USB en `deploy/`.
+1. **Fase 1 — Motor Vectorial + Fundaciones de Adaptación Segura (En curso, Casa):** integrar `sqlite-vec` (`vec0`) con fallback a `IndiceEmbeddingsRAM`, crear `nucleo/adaptacion.py` (Buffer Top-3 por pista, 4 compuertas con veto inter-clase, detector de alerta ambiental), extender `RepositorioLIS` (5 anclas + 3 slots con TTL/rollback, filtro por `proyecto` y `telemetria_shadow` pasiva) y mostrar 2do candidato + margen de Lowe en el HUD.
+2. **Fase 2 — Prueba Visual en Tiempo Real con Caras Reales (Casa):** ingesta de caras reales multi-pose de **LFW** en una base de prueba para simular una fila en vivo y probar la webcam propia mezclada entre cientos de rostros humanos reales.
+3. **Fase 3 — Seguridad Anti-Spoofing y UI de Actualización Explícita (Casa):** geometría 3D $Z$ y parpadeo/micro-movimiento con `FaceLandmarker` (y evaluación opcional de *MiniFASNet* en ONNX) + botón explícito *"Actualizar perfil (5 s)"* en el Tablero para Modo LIS.
+4. **Fase 4 — Gestión, Modo Aula y Resiliencia (Casa):** conectar `05 Estadísticas` a SQLite (`/stats`), implementar Padrón CSV + filtrado por comisión/turno + `aula_temp_*` con reconciliación offline, endpoint incremental `GET /events?since=cursor` y scripts `systemd`/USB en `deploy/`.
 5. **Fase 5 — Puesta en Marcha Física (Lab LIS):** instalar servicio desatendido, desactivar suspensión USB y validar soporte físico completo en puerta.
 

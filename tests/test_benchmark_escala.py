@@ -68,6 +68,7 @@ def test_indice_ram_galeria_vacia():
         "margen": None,
         "umbral": 0.68,
         "candidato_mas_cercano": None,
+        "segundo_candidato": None,
     }
 
 

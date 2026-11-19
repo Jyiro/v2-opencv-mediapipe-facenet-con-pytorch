@@ -143,9 +143,10 @@ def asegurar_jsonl_sincronizado() -> list[dict[str, Any]]:
     Lee portero_eventos.jsonl y garantiza sincronía bidireccional con SQLite
     para que tanto eventos de cámara como del Portero estén siempre unificados.
     """
-    RUTA_JSONL.parent.mkdir(parents=True, exist_ok=True)
-    if not RUTA_JSONL.exists():
-        RUTA_JSONL.touch()
+    ruta_jsonl = _gestor_portero.ruta_jsonl
+    ruta_jsonl.parent.mkdir(parents=True, exist_ok=True)
+    if not ruta_jsonl.exists():
+        ruta_jsonl.touch()
 
     eventos_db = repositorio.listar_eventos(desde_seq=0, limite=5000)
     ids_db: set[str] = {ev["id"] for ev in eventos_db if "id" in ev}
@@ -153,7 +154,7 @@ def asegurar_jsonl_sincronizado() -> list[dict[str, Any]]:
     eventos_jsonl: list[dict[str, Any]] = []
     ids_jsonl: set[str] = set()
 
-    with open(RUTA_JSONL, "r", encoding="utf-8") as f:
+    with open(ruta_jsonl, "r", encoding="utf-8") as f:
         for linea in f:
             linea = linea.strip()
             if not linea:
@@ -172,7 +173,7 @@ def asegurar_jsonl_sincronizado() -> list[dict[str, Any]]:
     nuevos_para_jsonl = [ev for ev in eventos_db if ev["id"] not in ids_jsonl]
 
     if nuevos_para_jsonl:
-        with open(RUTA_JSONL, "a", encoding="utf-8") as f:
+        with open(ruta_jsonl, "a", encoding="utf-8") as f:
             for ev in nuevos_para_jsonl:
                 copia = {k: v for k, v in ev.items() if k != "seq"}
                 f.write(json.dumps(copia, ensure_ascii=False) + "\n")
@@ -277,6 +278,17 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             )
             estado["ultimos_eventos"] = list(reversed(eventos[-40:]))
             self._responder_json(200, estado)
+            return
+
+        if ruta == "/telemetria/shadow":
+            limite = int(qs.get("limite", ["50"])[0])
+            self._responder_json(
+                200,
+                {
+                    "sqlite_vec_activo": repositorio.sqlite_vec_activo,
+                    "registros": repositorio.listar_telemetria_shadow(limite=limite),
+                },
+            )
             return
 
         if ruta == "/pruebas/estado":
@@ -455,6 +467,15 @@ class ManejadorPortero(BaseHTTPRequestHandler):
                 meta={"nombre": perfil["nombre"], "proyecto": perfil["proyecto"], "rol": perfil["rol"]},
             )
             repositorio.registrar_evento(ev)
+            cam_rt = repositorio.leer_estado_runtime("camara_estado", {})
+            repositorio.registrar_telemetria_shadow(
+                modo="LIS",
+                persona_id=perfil["nombre"],
+                metodo=metodo,
+                pistas_activas=int(cam_rt.get("rostros_en_cuadro", 0)),
+                decision_shadow="pin_contingencia",
+                meta={"origen": origen, "tipo_evento": tipo_accion},
+            )
             asegurar_jsonl_sincronizado()
             fichador.notificar_evento_acceso(perfil["nombre"], tipo_accion, None)
             self._responder_json(200, {"ok": True, "evento": ev, "perfil": perfil})
@@ -572,6 +593,12 @@ class ManejadorPortero(BaseHTTPRequestHandler):
             nombre = str(datos.get("nombre", "")).strip()
             ok = repositorio.eliminar_persona(nombre)
             self._responder_json(200, {"ok": ok})
+            return
+
+        if ruta == "/perfiles/revertir_anclas":
+            objetivo = str(datos.get("persona_id") or datos.get("nombre") or "").strip() or None
+            eliminados = repositorio.revertir_a_anclas(nombre_o_id=objetivo)
+            self._responder_json(200, {"ok": True, "slots_eliminados": eliminados})
             return
 
         if ruta in ("/perfiles/cancelar_enrolamiento", "/perfiles/cancelar"):

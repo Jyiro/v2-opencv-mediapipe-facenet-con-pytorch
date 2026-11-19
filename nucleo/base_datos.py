@@ -6,12 +6,18 @@ import logging
 import sqlite3
 import unicodedata
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterator
 import numpy as np
 
+from nucleo.comparacion import IndiceEmbeddingsRAM, normalizar_vector
 from nucleo.eventos import ahora_iso, derivar_estado
+
+try:
+    import sqlite_vec as _SQLITE_VEC_MODULO  # type: ignore[import-not-found]
+except Exception:
+    _SQLITE_VEC_MODULO = None
 
 PROYECTO_DIR = Path(__file__).resolve().parent.parent
 
@@ -52,9 +58,12 @@ class RepositorioLIS:
         self.ruta_caras_csv.parent.mkdir(parents=True, exist_ok=True)
         self.ruta_asistencia_csv.parent.mkdir(parents=True, exist_ok=True)
         self.ruta_ingresos_csv.parent.mkdir(parents=True, exist_ok=True)
+        self.sqlite_vec_activo: bool = False
 
         self._inicializar_esquema()
         self._migrar_caras_csv_si_corresponde()
+        if self.sqlite_vec_activo:
+            self.sincronizar_indice_vec()
 
     @contextlib.contextmanager
     def _conectar(self) -> Iterator[sqlite3.Connection]:
@@ -62,6 +71,17 @@ class RepositorioLIS:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys=ON;")
         conn.execute("PRAGMA synchronous=NORMAL;")
+        if _SQLITE_VEC_MODULO is not None and hasattr(conn, "enable_load_extension"):
+            try:
+                conn.enable_load_extension(True)
+                _SQLITE_VEC_MODULO.load(conn)
+            except Exception:
+                logging.debug("No se pudo cargar sqlite_vec en la conexión.", exc_info=True)
+            finally:
+                try:
+                    conn.enable_load_extension(False)
+                except Exception:
+                    pass
         try:
             with conn:
                 yield conn
@@ -118,6 +138,24 @@ class RepositorioLIS:
                     valor TEXT NOT NULL,
                     actualizado_t TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS telemetria_shadow (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    t TEXT NOT NULL,
+                    modo TEXT NOT NULL DEFAULT 'LIS',
+                    persona_id TEXT,
+                    metodo TEXT NOT NULL,
+                    pistas_activas INTEGER NOT NULL DEFAULT 0,
+                    dist_primero REAL,
+                    dist_segundo REAL,
+                    margen REAL,
+                    calidad REAL,
+                    brillo REAL,
+                    yaw REAL,
+                    pitch REAL,
+                    decision_shadow TEXT NOT NULL,
+                    meta TEXT NOT NULL DEFAULT '{}'
+                );
                 """
             )
             # Migración automática si la tabla eventos ya existía sin columna seq
@@ -162,7 +200,32 @@ class RepositorioLIS:
             except Exception:
                 pass
 
-            pass
+            # Migración idempotente de metadatos para slots discretos y TTL en embeddings
+            try:
+                cols_emb = {f["name"] for f in conn.execute("PRAGMA table_info(embeddings);").fetchall()}
+                for col, definicion in (
+                    ("tipo", "TEXT NOT NULL DEFAULT 'ancla'"),
+                    ("origen", "TEXT NOT NULL DEFAULT 'enrolamiento'"),
+                    ("expira_en", "TEXT"),
+                    ("ultimo_uso", "TEXT"),
+                    ("aciertos", "INTEGER NOT NULL DEFAULT 0"),
+                ):
+                    if cols_emb and col not in cols_emb:
+                        conn.execute(f"ALTER TABLE embeddings ADD COLUMN {col} {definicion};")
+            except Exception:
+                pass
+
+            if _SQLITE_VEC_MODULO is not None and hasattr(conn, "enable_load_extension"):
+                try:
+                    conn.execute(
+                        "CREATE VIRTUAL TABLE IF NOT EXISTS vec_embeddings USING vec0("
+                        "embedding_id INTEGER PRIMARY KEY, vector float[512]"
+                        ");"
+                    )
+                    self.sqlite_vec_activo = True
+                except Exception:
+                    logging.warning("sqlite-vec no disponible al crear vec_embeddings; se usará RAM.", exc_info=True)
+                    self.sqlite_vec_activo = False
 
     @staticmethod
     def normalizar_id(nombre: str) -> str:
@@ -270,6 +333,10 @@ class RepositorioLIS:
         modelo: str = "vggface2",
         reemplazar: bool = True,
         sincronizar_csv: bool = True,
+        *,
+        tipo: str = "ancla",
+        origen: str = "enrolamiento",
+        expira_en: str | None = None,
     ) -> int:
         perfil = self.obtener_persona(nombre)
         if not perfil:
@@ -284,11 +351,13 @@ class RepositorioLIS:
                 arr = np.asarray(emb, dtype=np.float32).flatten()
                 conn.execute(
                     """
-                    INSERT INTO embeddings (persona_id, vector, dimension, modelo, fecha_captura)
-                    VALUES (?, ?, ?, ?, ?)
+                    INSERT INTO embeddings (persona_id, vector, dimension, modelo, fecha_captura, tipo, origen, expira_en)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
-                    (pid, arr.tobytes(), int(arr.size), modelo, ahora),
+                    (pid, arr.tobytes(), int(arr.size), modelo, ahora, tipo, origen, expira_en),
                 )
+            if modelo == "vggface2" and self.sqlite_vec_activo:
+                self._sincronizar_vec_en_conexion(conn, modelo="vggface2")
 
         if sincronizar_csv:
             self.exportar_caras_csv()
@@ -301,6 +370,8 @@ class RepositorioLIS:
                 (nombre_o_id, nombre_o_id),
             )
             borrado = cur.rowcount > 0
+            if borrado and self.sqlite_vec_activo:
+                self._sincronizar_vec_en_conexion(conn, modelo="vggface2")
         if borrado:
             self.exportar_caras_csv()
         return borrado
@@ -363,18 +434,36 @@ class RepositorioLIS:
             return [dict(f) for f in filas]
 
     def cargar_diccionario_embeddings(
-        self, modelo: str = "vggface2", con_fallback: bool = True
+        self,
+        modelo: str = "vggface2",
+        con_fallback: bool = True,
+        proyecto: str | None = None,
+        solo_anclas: bool = False,
     ) -> dict[str, list[np.ndarray]]:
+        ahora = ahora_iso()
+        filtros = [
+            "p.activo = 1",
+            "(e.expira_en IS NULL OR e.expira_en > ?)",
+        ]
+        params: list[Any] = [ahora]
+        if proyecto is not None:
+            filtros.append("p.proyecto = ?")
+            params.append(str(proyecto))
+        if solo_anclas:
+            filtros.append("COALESCE(e.tipo, 'ancla') = 'ancla'")
+
+        where_sql = " AND ".join(filtros)
         resultado: dict[str, list[np.ndarray]] = {}
         with self._conectar() as conn:
             filas = conn.execute(
-                """
+                f"""
                 SELECT p.nombre, e.vector, e.dimension, e.modelo
                 FROM embeddings e
                 JOIN personas p ON p.id = e.persona_id
-                WHERE p.activo = 1
+                WHERE {where_sql}
                 ORDER BY e.id ASC
-                """
+                """,
+                params,
             ).fetchall()
 
             por_modelo: dict[str, dict[str, list[np.ndarray]]] = {}
@@ -382,7 +471,7 @@ class RepositorioLIS:
                 nom = f["nombre"]
                 mod = f["modelo"]
                 dim = int(f["dimension"] or 512)
-                arr = np.frombuffer(f["vector"], dtype=np.float32)
+                arr = np.frombuffer(f["vector"], dtype=np.float32).copy()
                 if arr.size == dim:
                     por_modelo.setdefault(mod, {}).setdefault(nom, []).append(arr)
 
@@ -394,6 +483,306 @@ class RepositorioLIS:
                         resultado[nom] = list(lista)
 
         return resultado
+
+    def cargar_anclas_persona(self, nombre_o_id: str, modelo: str = "vggface2") -> list[np.ndarray]:
+        """Devuelve únicamente las anclas base inmutables de una persona."""
+        with self._conectar() as conn:
+            filas = conn.execute(
+                """
+                SELECT e.vector, e.dimension
+                FROM embeddings e
+                JOIN personas p ON p.id = e.persona_id
+                WHERE (p.id = ? OR lower(p.nombre) = lower(?))
+                  AND p.activo = 1
+                  AND e.modelo = ?
+                  AND COALESCE(e.tipo, 'ancla') = 'ancla'
+                ORDER BY e.id ASC
+                """,
+                (nombre_o_id, nombre_o_id, modelo),
+            ).fetchall()
+        anclas: list[np.ndarray] = []
+        for f in filas:
+            dim = int(f["dimension"] or 512)
+            arr = np.frombuffer(f["vector"], dtype=np.float32).copy()
+            if arr.size == dim:
+                anclas.append(normalizar_vector(arr).astype(np.float32, copy=False))
+        return anclas
+
+    def _sincronizar_vec_en_conexion(self, conn: sqlite3.Connection, modelo: str = "vggface2") -> int:
+        if not self.sqlite_vec_activo:
+            return 0
+        ahora = ahora_iso()
+        conn.execute("DELETE FROM vec_embeddings;")
+        filas = conn.execute(
+            """
+            SELECT e.id, e.vector, e.dimension
+            FROM embeddings e
+            JOIN personas p ON p.id = e.persona_id
+            WHERE p.activo = 1
+              AND e.modelo = ?
+              AND e.dimension = 512
+              AND (e.expira_en IS NULL OR e.expira_en > ?)
+            ORDER BY e.id ASC
+            """,
+            (modelo, ahora),
+        ).fetchall()
+        lote: list[tuple[int, bytes]] = []
+        for f in filas:
+            arr = np.frombuffer(f["vector"], dtype=np.float32).copy()
+            if arr.size == 512:
+                arr_n = normalizar_vector(arr).astype(np.float32, copy=False)
+                lote.append((int(f["id"]), arr_n.tobytes()))
+        if lote:
+            conn.executemany(
+                "INSERT INTO vec_embeddings (embedding_id, vector) VALUES (?, ?)",
+                lote,
+            )
+        return len(lote)
+
+    def sincronizar_indice_vec(self, modelo: str = "vggface2") -> int:
+        """Sincroniza vec_embeddings (sqlite-vec) con embeddings activos y no expirados."""
+        if not self.sqlite_vec_activo:
+            return 0
+        with self._conectar() as conn:
+            return self._sincronizar_vec_en_conexion(conn, modelo=modelo)
+
+    def consultar_knn_sqlite_vec(
+        self,
+        embedding_consulta: np.ndarray,
+        *,
+        k: int = 10,
+        modelo: str = "vggface2",
+        proyecto: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Ejecuta búsqueda KNN nativa con sqlite-vec (o fallback en RAM si no está disponible)."""
+        emb_norm = normalizar_vector(np.asarray(embedding_consulta, dtype=np.float32).flatten()).astype(
+            np.float32, copy=False
+        )
+        limite = max(1, int(k))
+
+        if not self.sqlite_vec_activo or modelo != "vggface2" or emb_norm.size != 512:
+            galeria = self.cargar_diccionario_embeddings(
+                modelo=modelo, con_fallback=False, proyecto=proyecto
+            )
+            resultados_ram: list[dict[str, Any]] = []
+            for nombre, vecs in galeria.items():
+                for v in vecs:
+                    v_n = normalizar_vector(np.asarray(v, dtype=np.float32).flatten())
+                    if v_n.size == emb_norm.size:
+                        dist = float(np.linalg.norm(v_n - emb_norm))
+                        resultados_ram.append(
+                            {
+                                "embedding_id": None,
+                                "nombre": nombre,
+                                "proyecto": proyecto,
+                                "tipo": "ancla",
+                                "distancia": round(dist, 6),
+                            }
+                        )
+            resultados_ram.sort(key=lambda item: item["distancia"])
+            return resultados_ram[:limite]
+
+        ahora = ahora_iso()
+        with self._conectar() as conn:
+            total_vec = int(conn.execute("SELECT COUNT(*) FROM vec_embeddings").fetchone()[0])
+            if total_vec == 0:
+                return []
+            k_vec = min(total_vec, max(limite * 20, 200) if proyecto is not None else limite)
+            filtros = [
+                "v.vector MATCH ?",
+                "k = ?",
+                "p.activo = 1",
+                "e.modelo = ?",
+                "(e.expira_en IS NULL OR e.expira_en > ?)",
+            ]
+            params: list[Any] = [emb_norm.tobytes(), int(k_vec), modelo, ahora]
+            if proyecto is not None:
+                filtros.append("p.proyecto = ?")
+                params.append(str(proyecto))
+            params.append(limite)
+
+            filas = conn.execute(
+                f"""
+                SELECT v.embedding_id, v.distance AS distancia, p.nombre, p.proyecto,
+                       COALESCE(e.tipo, 'ancla') AS tipo
+                FROM vec_embeddings v
+                JOIN embeddings e ON e.id = v.embedding_id
+                JOIN personas p ON p.id = e.persona_id
+                WHERE {' AND '.join(filtros)}
+                ORDER BY v.distance ASC
+                LIMIT ?
+                """,
+                params,
+            ).fetchall()
+
+        return [
+            {
+                "embedding_id": int(f["embedding_id"]),
+                "nombre": f["nombre"],
+                "proyecto": f["proyecto"],
+                "tipo": f["tipo"],
+                "distancia": round(float(f["distancia"]), 6),
+            }
+            for f in filas
+        ]
+
+    def agregar_slot_adaptativo(
+        self,
+        nombre_o_id: str,
+        embedding: np.ndarray,
+        *,
+        modelo: str = "vggface2",
+        origen: str = "actualizacion_explicita",
+        ttl_dias: float = 120.0,
+        max_slots: int = 3,
+        expira_en: str | None = None,
+    ) -> int:
+        """Agrega un slot adaptativo discreto aplicando reemplazo LRU y TTL sin tocar anclas."""
+        arr = normalizar_vector(np.asarray(embedding, dtype=np.float32).flatten()).astype(
+            np.float32, copy=False
+        )
+        ahora = ahora_iso()
+        if expira_en is None:
+            expira_en = (datetime.now(timezone.utc) + timedelta(days=float(ttl_dias))).strftime(
+                "%Y-%m-%dT%H:%M:%SZ"
+            )
+
+        with self._conectar() as conn:
+            persona = conn.execute(
+                "SELECT id FROM personas WHERE (id = ? OR lower(nombre) = lower(?)) AND activo = 1",
+                (nombre_o_id, nombre_o_id),
+            ).fetchone()
+            if not persona:
+                raise ValueError(f"Persona no encontrada o inactiva: {nombre_o_id}")
+            pid = persona["id"]
+
+            # Purgar adaptativos vencidos
+            conn.execute(
+                """
+                DELETE FROM embeddings
+                WHERE persona_id = ? AND modelo = ? AND COALESCE(tipo, 'ancla') = 'adaptativo'
+                  AND expira_en IS NOT NULL AND expira_en <= ?
+                """,
+                (pid, modelo, ahora),
+            )
+
+            # Política LRU sobre slots adaptativos activos (nunca toca anclas)
+            existentes = conn.execute(
+                """
+                SELECT id FROM embeddings
+                WHERE persona_id = ? AND modelo = ? AND COALESCE(tipo, 'ancla') = 'adaptativo'
+                ORDER BY COALESCE(ultimo_uso, fecha_captura) ASC, id ASC
+                """,
+                (pid, modelo),
+            ).fetchall()
+            exceso = len(existentes) - max(1, int(max_slots)) + 1
+            if exceso > 0:
+                ids_borrar = [int(f["id"]) for f in existentes[:exceso]]
+                placeholders = ",".join("?" * len(ids_borrar))
+                conn.execute(f"DELETE FROM embeddings WHERE id IN ({placeholders})", ids_borrar)
+
+            cur = conn.execute(
+                """
+                INSERT INTO embeddings
+                (persona_id, vector, dimension, modelo, fecha_captura, tipo, origen, expira_en, ultimo_uso, aciertos)
+                VALUES (?, ?, ?, ?, ?, 'adaptativo', ?, ?, ?, 1)
+                """,
+                (pid, arr.tobytes(), int(arr.size), modelo, ahora, origen, expira_en, ahora),
+            )
+            nuevo_id = int(cur.lastrowid or 0)
+            if modelo == "vggface2" and self.sqlite_vec_activo:
+                self._sincronizar_vec_en_conexion(conn, modelo="vggface2")
+        return nuevo_id
+
+    def revertir_a_anclas(
+        self,
+        nombre_o_id: str | None = None,
+        modelo: str | None = None,
+    ) -> int:
+        """Elimina los slots adaptativos dejando intactas las anclas base (rollback sin fotos)."""
+        filtros = ["COALESCE(tipo, 'ancla') = 'adaptativo'"]
+        params: list[Any] = []
+        with self._conectar() as conn:
+            if nombre_o_id:
+                persona = conn.execute(
+                    "SELECT id FROM personas WHERE id = ? OR lower(nombre) = lower(?)",
+                    (nombre_o_id, nombre_o_id),
+                ).fetchone()
+                if not persona:
+                    return 0
+                filtros.append("persona_id = ?")
+                params.append(persona["id"])
+            if modelo:
+                filtros.append("modelo = ?")
+                params.append(modelo)
+
+            cur = conn.execute(f"DELETE FROM embeddings WHERE {' AND '.join(filtros)}", params)
+            eliminados = int(cur.rowcount or 0)
+            if eliminados > 0 and self.sqlite_vec_activo:
+                self._sincronizar_vec_en_conexion(conn, modelo="vggface2")
+        return eliminados
+
+    def registrar_telemetria_shadow(
+        self,
+        *,
+        modo: str = "LIS",
+        persona_id: str | None = None,
+        metodo: str = "cara+gesto",
+        pistas_activas: int = 0,
+        dist_primero: float | None = None,
+        dist_segundo: float | None = None,
+        margen: float | None = None,
+        calidad: float | None = None,
+        brillo: float | None = None,
+        yaw: float | None = None,
+        pitch: float | None = None,
+        decision_shadow: str = "observacion",
+        meta: dict[str, Any] | None = None,
+        t: str | None = None,
+    ) -> int:
+        """Registra una observación numérica liviana en telemetria_shadow (sin fotos)."""
+        with self._conectar() as conn:
+            cur = conn.execute(
+                """
+                INSERT INTO telemetria_shadow
+                (t, modo, persona_id, metodo, pistas_activas, dist_primero, dist_segundo, margen,
+                 calidad, brillo, yaw, pitch, decision_shadow, meta)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    t or ahora_iso(),
+                    modo,
+                    persona_id,
+                    metodo,
+                    int(pistas_activas),
+                    float(dist_primero) if dist_primero is not None else None,
+                    float(dist_segundo) if dist_segundo is not None else None,
+                    float(margen) if margen is not None else None,
+                    float(calidad) if calidad is not None else None,
+                    float(brillo) if brillo is not None else None,
+                    float(yaw) if yaw is not None else None,
+                    float(pitch) if pitch is not None else None,
+                    decision_shadow,
+                    json.dumps(meta or {}, ensure_ascii=False),
+                ),
+            )
+            return int(cur.lastrowid or 0)
+
+    def listar_telemetria_shadow(self, limite: int = 100) -> list[dict[str, Any]]:
+        with self._conectar() as conn:
+            filas = conn.execute(
+                "SELECT * FROM telemetria_shadow ORDER BY id DESC LIMIT ?",
+                (max(1, int(limite)),),
+            ).fetchall()
+        res: list[dict[str, Any]] = []
+        for f in filas:
+            item = dict(f)
+            try:
+                item["meta"] = json.loads(item.get("meta") or "{}")
+            except Exception:
+                item["meta"] = {}
+            res.append(item)
+        return res
 
     def exportar_caras_csv(self) -> None:
         """Reescribe caras.csv de forma limpia desde SQLite (sin duplicados basura)."""
